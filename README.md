@@ -54,6 +54,12 @@ scripts/install-local.sh
 
 See [`docs/install.md`](docs/install.md) for the symlink-vs-copy behavior and current assumptions.
 
+For the matching removal path:
+
+```bash
+scripts/uninstall-local.sh
+```
+
 ## Validation
 
 For a quick local sanity check of the staged slice:

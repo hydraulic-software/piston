@@ -25,6 +25,16 @@ scripts/install-local.sh --copy
 
 That copies the helper scripts and the skill directory into the same targets.
 
+## Uninstall
+
+To remove the staged helper slice from the current account:
+
+```bash
+scripts/uninstall-local.sh
+```
+
+That removes the three helper entry names from `~/.local/bin` and the staged `markdown-email` skill from `${CODEX_HOME:-~/.codex}/skills`.
+
 ## What it does not install
 
 This repo only stages the portable helper slice. It does not install any of the HQ-specific overlay pieces from `profiles/hq-axiom/`, such as:

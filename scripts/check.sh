@@ -12,6 +12,7 @@ python3 -m py_compile \
 
 echo "[2/3] Installer shell syntax"
 bash -n "$REPO_ROOT/scripts/install-local.sh"
+bash -n "$REPO_ROOT/scripts/uninstall-local.sh"
 
 echo "[3/3] Throwaway install smoke test"
 tmpdir="$(mktemp -d)"
@@ -31,6 +32,22 @@ done
 
 if [[ ! -e "$tmpdir/codex/skills/markdown-email/SKILL.md" ]]; then
   echo "missing installed skill: $tmpdir/codex/skills/markdown-email/SKILL.md" >&2
+  exit 1
+fi
+
+CODEX_HOME="$tmpdir/codex" HOME="$tmpdir/home" \
+  "$REPO_ROOT/scripts/uninstall-local.sh" >/dev/null
+
+for helper in axiom-send-markdown-mail axiom-teamcity-watch axiom-todo; do
+  target="$tmpdir/home/.local/bin/$helper"
+  if [[ -e "$target" || -L "$target" ]]; then
+    echo "helper still present after uninstall: $target" >&2
+    exit 1
+  fi
+done
+
+if [[ -e "$tmpdir/codex/skills/markdown-email" || -L "$tmpdir/codex/skills/markdown-email" ]]; then
+  echo "skill still present after uninstall: $tmpdir/codex/skills/markdown-email" >&2
   exit 1
 fi
 
