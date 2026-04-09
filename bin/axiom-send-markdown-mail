@@ -1,0 +1,137 @@
+#!/usr/bin/env python3
+
+import argparse
+import email
+import email.policy
+import os
+import shutil
+import subprocess
+import sys
+from email.message import EmailMessage
+from pathlib import Path
+
+
+DEFAULT_FROM = os.environ.get("BOT_MAIL_FROM", "Axiom <axiom@hq.hydraulic.software>")
+DEFAULT_ENVELOPE_FROM = os.environ.get("BOT_ENVELOPE_FROM", "axiom@hq.hydraulic.software")
+SENDMAIL = os.environ.get("BOT_SENDMAIL", "/usr/sbin/sendmail")
+
+
+def parse_args():
+    parser = argparse.ArgumentParser(
+        description="Send multipart plain-text + HTML mail from Markdown, optionally threading as a reply."
+    )
+    parser.add_argument("--to", help="Recipient email address")
+    parser.add_argument("--subject", help="Message subject")
+    parser.add_argument("--markdown-file", type=Path, help="Path to Markdown body file")
+    parser.add_argument("--reply-mail", type=Path, help="Existing RFC822 mail file to reply to")
+    parser.add_argument("--from-header", default=DEFAULT_FROM, help="From header value")
+    parser.add_argument("--envelope-from", default=DEFAULT_ENVELOPE_FROM, help="SMTP envelope sender")
+    parser.add_argument("--reply-to", help="Optional Reply-To header value")
+    parser.add_argument("--in-reply-to", help="Optional In-Reply-To header value")
+    parser.add_argument("--references", help="Optional References header value")
+    parser.add_argument("--dry-run", action="store_true", help="Write the rendered MIME message to stdout instead of sending")
+    return parser.parse_args()
+
+
+def read_markdown(markdown_file: Path | None) -> str:
+    if markdown_file is not None:
+        return markdown_file.read_text(encoding="utf-8")
+    return sys.stdin.read()
+
+
+def render_with_pandoc(markdown_text: str, to_format: str) -> str:
+    result = subprocess.run(
+        ["pandoc", "--from", "markdown", "--to", to_format],
+        input=markdown_text,
+        text=True,
+        capture_output=True,
+        check=True,
+    )
+    return result.stdout.strip()
+
+
+def subject_for_reply(subject: str) -> str:
+    if subject.lower().startswith("re:"):
+        return subject
+    return f"Re: {subject}"
+
+
+def reply_context(reply_mail: Path) -> dict[str, str]:
+    message = email.message_from_bytes(reply_mail.read_bytes(), policy=email.policy.default)
+    to_header = message.get("Reply-To") or message.get("From")
+    subject = subject_for_reply(message.get("Subject", "").strip() or "(no subject)")
+    message_id = (message.get("Message-ID") or "").strip()
+    references = " ".join(
+        value for value in [message.get("References", "").strip(), message_id] if value
+    ).strip()
+    return {
+        "to": to_header,
+        "subject": subject,
+        "in_reply_to": message_id,
+        "references": references,
+    }
+
+
+def build_message(args, markdown_text: str) -> EmailMessage:
+    html_body = render_with_pandoc(markdown_text, "html5")
+    plain_body = render_with_pandoc(markdown_text, "plain")
+
+    reply_values = reply_context(args.reply_mail) if args.reply_mail else {}
+    to_header = args.to or reply_values.get("to")
+    subject = args.subject or reply_values.get("subject")
+    in_reply_to = args.in_reply_to or reply_values.get("in_reply_to")
+    references = args.references or reply_values.get("references")
+
+    if not to_header:
+        raise SystemExit("Missing recipient. Use --to or --reply-mail.")
+    if not subject:
+        raise SystemExit("Missing subject. Use --subject or --reply-mail.")
+
+    msg = EmailMessage()
+    msg["From"] = args.from_header
+    msg["To"] = to_header
+    msg["Subject"] = subject
+    msg["MIME-Version"] = "1.0"
+    if args.reply_to:
+        msg["Reply-To"] = args.reply_to
+    if in_reply_to:
+        msg["In-Reply-To"] = in_reply_to
+    if references:
+        msg["References"] = references
+
+    msg.set_content(plain_body, subtype="plain", charset="utf-8")
+    msg.add_alternative(html_body, subtype="html", charset="utf-8")
+    return msg
+
+
+def send_message(msg: EmailMessage, envelope_from: str):
+    if not shutil.which(SENDMAIL):
+        raise SystemExit(f"{SENDMAIL} is not available on this system.")
+
+    process = subprocess.run(
+        [SENDMAIL, "-oi", "-f", envelope_from, "--"] + msg.get_all("To", []),
+        input=msg.as_bytes(),
+        capture_output=True,
+        check=False,
+    )
+    if process.returncode != 0:
+        sys.stderr.write(process.stderr.decode("utf-8", errors="replace"))
+        raise SystemExit(process.returncode)
+
+
+def main():
+    args = parse_args()
+    markdown_text = read_markdown(args.markdown_file)
+    if not markdown_text.strip():
+        raise SystemExit("Markdown body is empty.")
+
+    message = build_message(args, markdown_text)
+    if args.dry_run:
+        sys.stdout.buffer.write(message.as_bytes())
+        return
+
+    send_message(message, args.envelope_from)
+
+
+if __name__ == "__main__":
+    main()

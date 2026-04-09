@@ -1,0 +1,173 @@
+#!/usr/bin/env python3
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import re
+import sys
+import tempfile
+from datetime import date
+from pathlib import Path
+
+
+TODO_FILE = Path(os.environ.get("BOT_TODO_FILE", "/home/axiom/.local/state/axiom/todo.json"))
+VALID_STATUSES = {"pending", "started", "done"}
+
+
+def today() -> str:
+    return date.today().isoformat()
+
+
+def slugify(text: str) -> str:
+    slug = re.sub(r"[^a-z0-9]+", "-", text.lower()).strip("-")
+    return slug or "todo"
+
+
+def load_data() -> dict:
+    if not TODO_FILE.exists():
+        return {"items": []}
+    try:
+        data = json.loads(TODO_FILE.read_text())
+    except json.JSONDecodeError as exc:
+        raise SystemExit(f"invalid JSON in {TODO_FILE}: {exc}") from exc
+    if not isinstance(data, dict):
+        raise SystemExit(f"{TODO_FILE} must contain a JSON object")
+    items = data.get("items", [])
+    if not isinstance(items, list):
+        raise SystemExit(f"{TODO_FILE} must contain an 'items' list")
+    normalized = []
+    for item in items:
+        if not isinstance(item, dict):
+            raise SystemExit("todo items must be objects")
+        if "id" not in item or "text" not in item:
+            raise SystemExit("todo items must contain at least 'id' and 'text'")
+        status = str(item.get("status", "pending")).lower()
+        if status not in VALID_STATUSES:
+            raise SystemExit(f"invalid todo status for {item.get('id')!r}: {status}")
+        normalized_item = dict(item)
+        normalized_item["id"] = str(item["id"]).strip()
+        normalized_item["text"] = str(item["text"]).strip()
+        normalized_item["status"] = status
+        normalized_item["updated_day"] = str(item.get("updated_day", "") or "").strip()
+        done_day = str(item.get("done_day", "") or "").strip()
+        if done_day:
+            normalized_item["done_day"] = done_day
+        else:
+            normalized_item.pop("done_day", None)
+        normalized.append(normalized_item)
+    data["items"] = normalized
+    return data
+
+
+def save_data(data: dict) -> None:
+    TODO_FILE.parent.mkdir(parents=True, exist_ok=True)
+    with tempfile.NamedTemporaryFile(
+        "w",
+        encoding="utf-8",
+        dir=str(TODO_FILE.parent),
+        prefix=".todo-",
+        suffix=".tmp",
+        delete=False,
+    ) as tmp:
+        json.dump(data, tmp, indent=2, ensure_ascii=False)
+        tmp.write("\n")
+        tmp_path = Path(tmp.name)
+    tmp_path.replace(TODO_FILE)
+
+
+def find_item(data: dict, item_id: str) -> dict:
+    for item in data["items"]:
+        if item["id"] == item_id:
+            return item
+    raise SystemExit(f"todo item not found: {item_id}")
+
+
+def set_status(item: dict, status: str) -> None:
+    item["status"] = status
+    item["updated_day"] = today()
+    if status == "done":
+        item["done_day"] = today()
+    else:
+        item.pop("done_day", None)
+
+
+def cmd_list(_: argparse.Namespace) -> int:
+    data = load_data()
+    items = data["items"]
+    if not items:
+        print("No todo items.")
+        return 0
+    for item in items:
+        status = item["status"]
+        meta = [status]
+        if item.get("updated_day"):
+            meta.append(f"updated={item['updated_day']}")
+        if item.get("done_day"):
+            meta.append(f"done={item['done_day']}")
+        print(f"{item['id']}\t[{', '.join(meta)}]\t{item['text']}")
+    return 0
+
+
+def cmd_add(args: argparse.Namespace) -> int:
+    data = load_data()
+    item_id = args.id or slugify(args.text)
+    if any(item["id"] == item_id for item in data["items"]):
+        raise SystemExit(f"todo item already exists: {item_id}")
+    data["items"].append(
+        {
+            "id": item_id,
+            "text": args.text.strip(),
+            "status": "pending",
+            "updated_day": today(),
+        }
+    )
+    save_data(data)
+    print(item_id)
+    return 0
+
+
+def cmd_set_status(args: argparse.Namespace, status: str) -> int:
+    data = load_data()
+    item = find_item(data, args.id)
+    set_status(item, status)
+    save_data(data)
+    print(f"{item['id']}\t{item['status']}")
+    return 0
+
+
+def build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(prog="axiom-todo", description="Edit /home/axiom/.local/state/axiom/todo.json")
+    sub = parser.add_subparsers(dest="command", required=True)
+
+    p_list = sub.add_parser("list", help="List todo items")
+    p_list.set_defaults(func=cmd_list)
+
+    p_add = sub.add_parser("add", help="Add a pending todo item")
+    p_add.add_argument("text", help="Todo text")
+    p_add.add_argument("--id", help="Explicit item id (defaults to a slug from text)")
+    p_add.set_defaults(func=cmd_add)
+
+    p_start = sub.add_parser("start", help="Mark a todo item as started")
+    p_start.add_argument("id", help="Item id")
+    p_start.set_defaults(func=lambda args: cmd_set_status(args, "started"))
+
+    p_pending = sub.add_parser("pending", help="Mark a todo item as pending")
+    p_pending.add_argument("id", help="Item id")
+    p_pending.set_defaults(func=lambda args: cmd_set_status(args, "pending"))
+
+    p_done = sub.add_parser("done", help="Mark a todo item as done")
+    p_done.add_argument("id", help="Item id")
+    p_done.set_defaults(func=lambda args: cmd_set_status(args, "done"))
+
+    return parser
+
+
+def main(argv: list[str]) -> int:
+    parser = build_parser()
+    args = parser.parse_args(argv)
+    return args.func(args)
+
+
+if __name__ == "__main__":
+    raise SystemExit(main(sys.argv[1:]))

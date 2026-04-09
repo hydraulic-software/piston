@@ -1,0 +1,265 @@
+#!/usr/bin/env python3
+"""Poll TeamCity for a build until it appears and/or finishes."""
+
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import sys
+import time
+import urllib.error
+import urllib.parse
+import urllib.request
+
+
+DEFAULT_BASE_URL = "https://teamcity.hq.hydraulic.software"
+
+
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="Watch a TeamCity build or branch build.")
+    parser.add_argument(
+        "--base-url",
+        default=os.environ.get("TEAMCITY_BASE_URL", DEFAULT_BASE_URL),
+        help="TeamCity base URL (default: TEAMCITY_BASE_URL or HQ TeamCity)",
+    )
+    parser.add_argument("--build-type", help="TeamCity build type id, e.g. Product_Axiom_ProductLinux")
+    parser.add_argument("--branch", help="Branch name to watch, e.g. rr/axiom/co-710-origin-fix")
+    parser.add_argument("--build-id", help="Specific TeamCity build id to watch")
+    parser.add_argument(
+        "--latest",
+        action="store_true",
+        help="Do a one-shot lookup of the latest matching build instead of waiting for it to appear/finish",
+    )
+    parser.add_argument("--poll-seconds", type=float, default=20.0, help="Polling interval in seconds")
+    parser.add_argument(
+        "--appear-timeout-seconds",
+        type=float,
+        default=1800.0,
+        help="How long to wait for a matching build to appear before exiting",
+    )
+    parser.add_argument(
+        "--finish-timeout-seconds",
+        type=float,
+        default=14400.0,
+        help="How long to wait for the build to finish after it appears before exiting",
+    )
+    parser.add_argument(
+        "--json",
+        action="store_true",
+        help="Print the final build summary as JSON as well as the human summary",
+    )
+    parser.add_argument(
+        "--tail-log-lines",
+        type=int,
+        default=0,
+        help="After finding the build, print the last N lines of its build log before exiting",
+    )
+    parser.add_argument(
+        "--stream-log-tail-lines",
+        type=int,
+        default=0,
+        help="While waiting on a live build, print the latest N log lines once and then any newly appended lines",
+    )
+    args = parser.parse_args()
+    if not args.build_id and not (args.build_type and args.branch):
+        parser.error("pass either --build-id or both --build-type and --branch")
+    return args
+
+
+def api_get(base_url: str, path: str, query: dict[str, str]) -> dict:
+    api_key = os.environ.get("TEAMCITY_API_KEY")
+    if not api_key:
+        raise SystemExit("TEAMCITY_API_KEY is not set")
+
+    url = f"{base_url.rstrip('/')}{path}?{urllib.parse.urlencode(query)}"
+    request = urllib.request.Request(
+        url,
+        headers={
+            "Authorization": f"Bearer {api_key}",
+            "Accept": "application/json",
+        },
+    )
+    with urllib.request.urlopen(request) as response:
+        return json.load(response)
+
+
+def api_get_text(base_url: str, path: str, query: dict[str, str]) -> str:
+    api_key = os.environ.get("TEAMCITY_API_KEY")
+    if not api_key:
+        raise SystemExit("TEAMCITY_API_KEY is not set")
+
+    url = f"{base_url.rstrip('/')}{path}?{urllib.parse.urlencode(query)}"
+    request = urllib.request.Request(
+        url,
+        headers={
+            "Authorization": f"Bearer {api_key}",
+        },
+    )
+    with urllib.request.urlopen(request) as response:
+        return response.read().decode("utf-8", errors="replace")
+
+
+def find_build(args: argparse.Namespace) -> dict | None:
+    fields = ",".join(
+        [
+            "count",
+            "build(id,number,status,state,statusText,branchName,queuedDate,startDate,finishDate,webUrl)",
+        ]
+    )
+    if args.build_id:
+        try:
+            return api_get(
+                args.base_url,
+                f"/app/rest/builds/id:{args.build_id}",
+                {
+                    "fields": "id,number,status,state,statusText,branchName,queuedDate,startDate,finishDate,webUrl",
+                },
+            )
+        except urllib.error.HTTPError as exc:
+            if exc.code == 404:
+                return None
+            raise
+
+    payload = api_get(
+        args.base_url,
+        "/app/rest/builds",
+        {
+            "locator": f"buildType:{args.build_type},branch:{args.branch},count:1",
+            "fields": fields,
+        },
+    )
+    builds = payload.get("build", [])
+    return builds[0] if builds else None
+
+
+def summarize(build: dict) -> str:
+    parts = [
+        f"id={build.get('id')}",
+        f"number={build.get('number')}",
+        f"branch={build.get('branchName')}",
+        f"state={build.get('state')}",
+        f"status={build.get('status')}",
+    ]
+    if build.get("statusText"):
+        parts.append(f"statusText={build['statusText']}")
+    if build.get("webUrl"):
+        parts.append(f"url={build['webUrl']}")
+    return " | ".join(parts)
+
+
+def final_exit_code(build: dict) -> int:
+    state = build.get("state")
+    status = build.get("status")
+    if state != "finished":
+        return 3
+    if status == "SUCCESS":
+        return 0
+    if status == "FAILURE":
+        return 1
+    if status == "UNKNOWN":
+        return 2
+    return 2
+
+
+def print_log_tail(base_url: str, build: dict, lines: int) -> None:
+    if lines <= 0:
+        return
+    build_id = build.get("id")
+    if not build_id:
+        return
+    text = api_get_text(base_url, "/downloadBuildLog.html", {"buildId": str(build_id)})
+    all_lines = text.splitlines()
+    tail = all_lines[-lines:] if len(all_lines) > lines else all_lines
+    print(f"--- build log tail ({len(tail)} line(s)) ---")
+    for line in tail:
+        print(line)
+
+
+def stream_log_updates(base_url: str, build: dict, lines: int, state: dict[str, int | bool]) -> None:
+    if lines <= 0:
+        return
+    build_id = build.get("id")
+    if not build_id:
+        return
+
+    text = api_get_text(base_url, "/downloadBuildLog.html", {"buildId": str(build_id)})
+    all_lines = text.splitlines()
+    if not all_lines:
+        return
+
+    if not state.get("started"):
+        initial = all_lines[-lines:] if len(all_lines) > lines else all_lines
+        print(f"--- live build log ({len(initial)} line(s)) ---")
+        for line in initial:
+            print(line)
+        state["printed"] = len(all_lines)
+        state["started"] = True
+        return
+
+    printed = int(state.get("printed", 0))
+    if len(all_lines) <= printed:
+        return
+
+    print(f"--- live build log update ({len(all_lines) - printed} line(s)) ---")
+    for line in all_lines[printed:]:
+        print(line)
+    state["printed"] = len(all_lines)
+
+
+def main() -> int:
+    args = parse_args()
+    appear_deadline = time.time() + args.appear_timeout_seconds
+    finish_deadline = None
+    last_summary = None
+    build = None
+    log_stream_state: dict[str, int | bool] = {"printed": 0, "started": False}
+
+    if args.latest:
+        build = find_build(args)
+        if build is None:
+            print("No matching TeamCity build found.", file=sys.stderr)
+            return 4
+        print(summarize(build))
+        if args.json:
+            print(json.dumps(build, indent=2, sort_keys=True))
+        print_log_tail(args.base_url, build, args.tail_log_lines)
+        return final_exit_code(build)
+
+    while True:
+        build = find_build(args)
+        now = time.time()
+
+        if build is None:
+            if now > appear_deadline:
+                print("No matching TeamCity build appeared before timeout.", file=sys.stderr)
+                return 4
+            print("Waiting for matching TeamCity build to appear...")
+            time.sleep(args.poll_seconds)
+            continue
+
+        if finish_deadline is None:
+            finish_deadline = now + args.finish_timeout_seconds
+
+        summary = summarize(build)
+        if summary != last_summary:
+            print(summary)
+            last_summary = summary
+
+        if build.get("state") == "finished":
+            if args.json:
+                print(json.dumps(build, indent=2, sort_keys=True))
+            print_log_tail(args.base_url, build, args.tail_log_lines)
+            return final_exit_code(build)
+
+        stream_log_updates(args.base_url, build, args.stream_log_tail_lines, log_stream_state)
+
+        if now > finish_deadline:
+            print("Build did not finish before timeout.", file=sys.stderr)
+            return 5
+
+        time.sleep(args.poll_seconds)
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
