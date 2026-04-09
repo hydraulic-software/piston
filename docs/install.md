@@ -39,3 +39,13 @@ This repo only stages the portable helper slice. It does not install any of the 
 - `~/.local/bin` should already be on your `PATH`
 - the Markdown mail helper expects `pandoc` and a working `sendmail`-compatible binary
 - the TeamCity helper expects a valid TeamCity API token in the environment used by that host
+
+## Validation
+
+To verify the staged slice without touching your real account state:
+
+```bash
+scripts/check.sh
+```
+
+That script syntax-checks the Python helpers, syntax-checks the installer, and runs a throwaway install into a temporary `HOME` / `CODEX_HOME`.

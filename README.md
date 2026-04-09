@@ -53,3 +53,13 @@ scripts/install-local.sh
 ```
 
 See [`docs/install.md`](docs/install.md) for the symlink-vs-copy behavior and current assumptions.
+
+## Validation
+
+For a quick local sanity check of the staged slice:
+
+```bash
+scripts/check.sh
+```
+
+That runs Python syntax checks and a throwaway install smoke test.
