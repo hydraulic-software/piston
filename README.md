@@ -17,6 +17,7 @@ The goal is to prove the extraction boundary before attempting to move more HQ-s
 - not pushed anywhere
 - helpers are still named after their Axiom origin for now
 - the included helpers have already been parameterized enough to run outside this exact HQ account
+- a minimal local bootstrap path now exists via `scripts/install-local.sh`
 
 ## Portable knobs already added
 
@@ -40,3 +41,15 @@ The goal is to prove the extraction boundary before attempting to move more HQ-s
   - shared setup/migration notes
 - `profiles/`
   - host/account-specific overlays that should not become the default shared behavior
+- `scripts/`
+  - small install/bootstrap helpers for local use
+
+## Install
+
+For a simple local bootstrap from this repo:
+
+```bash
+scripts/install-local.sh
+```
+
+See [`docs/install.md`](docs/install.md) for the symlink-vs-copy behavior and current assumptions.

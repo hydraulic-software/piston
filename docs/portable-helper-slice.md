@@ -24,6 +24,6 @@ The following remain out of scope for this first slice because they are still to
 ## What a future cleanup would likely do
 
 - rename the helpers away from the `axiom-` prefix
-- add a tiny install/bootstrap script
+- decide whether the current tiny install/bootstrap script is enough or should become a more polished setup path
 - make the skill refer to the final helper name/path
 - decide whether `axiom-todo` should stay as a tiny JSON board or give way to a repo-local tracker later
