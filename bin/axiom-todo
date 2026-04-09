@@ -92,10 +92,15 @@ def set_status(item: dict, status: str) -> None:
         item.pop("done_day", None)
 
 
-def cmd_list(_: argparse.Namespace) -> int:
+def cmd_list(args: argparse.Namespace) -> int:
     data = load_data()
     items = data["items"]
+    if args.active:
+        items = [item for item in items if item["status"] != "done"]
     if not items:
+        if args.active:
+            print("No active todo items.")
+            return 0
         print("No todo items.")
         return 0
     for item in items:
@@ -141,6 +146,7 @@ def build_parser() -> argparse.ArgumentParser:
     sub = parser.add_subparsers(dest="command", required=True)
 
     p_list = sub.add_parser("list", help="List todo items")
+    p_list.add_argument("--active", action="store_true", help="Only show pending and started items")
     p_list.set_defaults(func=cmd_list)
 
     p_add = sub.add_parser("add", help="Add a pending todo item")

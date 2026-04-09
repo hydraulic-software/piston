@@ -30,6 +30,7 @@ The goal is to prove the extraction boundary before attempting to move more HQ-s
   - `TEAMCITY_BASE_URL`
 - `axiom-todo`
   - `BOT_TODO_FILE`
+  - `list --active`
 
 ## Layout
 
