@@ -1,0 +1,12 @@
+[Unit]
+Description=Periodic autonomous Codex wakeup
+
+[Timer]
+OnBootSec=2m
+OnUnitActiveSec=15m
+RandomizedDelaySec=2m
+Persistent=true
+Unit=axiom-autonomy.service
+
+[Install]
+WantedBy=timers.target

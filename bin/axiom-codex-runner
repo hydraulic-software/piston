@@ -1,0 +1,106 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+mode="${1:-}"
+if [[ -z "${mode}" ]]; then
+  echo "usage: $0 <mail|timer|nightly>" >&2
+  exit 64
+fi
+
+case "${mode}" in
+  mail)
+    prompt="The time is $(date). You've got mail! Find it in your ~/Maildir"
+    ;;
+  timer)
+    prompt="The time is $(date). Autonomous check-in: wake up, review the current state, and see if there is anything useful to do."
+    ;;
+  nightly)
+    prompt="The time is $(date). Nightly maintenance wakeup: consolidate notes and memory, organize the home directory and thematic wiki, review the rolling todo list, and see if any safe cleanup or follow-up work should be prepared for tomorrow."
+    ;;
+  *)
+    echo "unknown mode: ${mode}" >&2
+    exit 64
+    ;;
+esac
+
+export HOME="${HOME:-$(cd ~ && pwd)}"
+export USER="${USER:-$(id -un)}"
+export PATH="${HOME}/.local/bin:/usr/local/bin:/usr/bin:/bin"
+umask 022
+
+lock_dir="${HOME}/.local/state/axiom"
+mkdir -p "${lock_dir}"
+lock_file="${lock_dir}/codex.lock"
+run_log_dir="${lock_dir}/runs"
+mkdir -p "${run_log_dir}"
+
+log() {
+  printf '[%s] [%s] %s\n' "$(date --iso-8601=seconds)" "${mode}" "$*"
+}
+
+exec 9>"${lock_file}"
+log "waiting for lock ${lock_file}"
+flock 9
+log "acquired lock"
+
+common_args=(
+  --dangerously-bypass-approvals-and-sandbox
+  --skip-git-repo-check
+)
+
+timestamp="$(date +%Y%m%dT%H%M%S)"
+message_file="${run_log_dir}/${timestamp}-${mode}.last-message.txt"
+transcript_file="${run_log_dir}/${timestamp}-${mode}.transcript.txt"
+schedule_helper="${HOME}/.local/bin/axiom-autonomy-scheduler"
+
+summarize_last_message() {
+  if [[ -s "${message_file}" ]]; then
+    local summary
+    summary="$(tr '\n' ' ' < "${message_file}" | sed 's/[[:space:]]\+/ /g' | cut -c1-400)"
+    log "final message saved to ${message_file}"
+    log "full transcript saved to ${transcript_file}"
+    log "final summary: ${summary}"
+  else
+    log "no final message was captured"
+  fi
+}
+
+if [[ "${mode}" == "nightly" ]]; then
+  summary_helper="${HOME}/.local/bin/axiom-nightly-summary"
+  if [[ -x "${summary_helper}" ]]; then
+    nightly_summary="$("${summary_helper}" --limit-notes 6 2>/dev/null || true)"
+    if [[ -n "${nightly_summary}" ]]; then
+      prompt+=$'\n\nNightly summary snapshot:\n'"${nightly_summary}"
+      log "included nightly summary snapshot in prompt"
+    else
+      log "nightly summary helper returned no output"
+    fi
+  else
+    log "nightly summary helper not found at ${summary_helper}"
+  fi
+fi
+
+if [[ "${mode}" == "timer" && -x "${schedule_helper}" ]]; then
+  if schedule_status="$("${schedule_helper}" due 2>&1)"; then
+    log "schedule decision: ${schedule_status}"
+  else
+    log "schedule decision: ${schedule_status}"
+    log "skipping timer wakeup because workload does not justify a run yet"
+    exit 0
+  fi
+fi
+
+if codex exec resume --last "${common_args[@]}" -o "${message_file}" "${prompt}" >"${transcript_file}" 2>&1; then
+  log "resumed latest Codex session"
+else
+  log "resume failed, starting fresh non-interactive run"
+  codex exec "${common_args[@]}" -o "${message_file}" "${prompt}" >"${transcript_file}" 2>&1
+fi
+
+if [[ "${mode}" == "timer" && -x "${schedule_helper}" ]]; then
+  record_status="$("${schedule_helper}" record 2>&1 || true)"
+  log "schedule record: ${record_status}"
+fi
+
+summarize_last_message
+log "run complete"

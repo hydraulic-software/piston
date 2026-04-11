@@ -1,6 +1,6 @@
 # Portable Helper Slice
 
-This staging repo is the Phase 1 extraction candidate from the earlier reusable-tooling review.
+This repo started as the Phase 1 extraction candidate from the earlier reusable-tooling review.
 
 ## Why these files first
 
@@ -13,13 +13,20 @@ They are small, already useful, and now parameterized enough to stop depending o
 
 ## Why not the rest yet
 
-The following remain out of scope for this first slice because they are still too tied to this host/account:
+The following were originally out of scope for the first slice because they were too tied to this host/account:
 
-- Codex runner
 - monitor renderer/watcher
-- mail filter
 - nightly summary helper
 - most operational notes and wiki content
+
+Since then the shared repo has widened one step and now includes a Linux automation layer too:
+
+- a portable `axiom-codex-runner`
+- a workload-sensitive `axiom-autonomy-scheduler`
+- a configurable `axiom-mail-filter`
+- example `systemd --user` units for timer, nightly, and Maildir-triggered wakeups
+
+The remaining boundary is now mostly around the monitor stack, local profile state, and HQ-specific policy, not around Maildir or `systemd` themselves.
 
 ## What a future cleanup would likely do
 

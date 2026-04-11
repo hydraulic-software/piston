@@ -7,11 +7,13 @@ REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 BIN_TARGET="${HOME}/.local/bin"
 SKILLS_ROOT="${CODEX_HOME:-${HOME}/.codex}/skills"
 SKILL_TARGET="${SKILLS_ROOT}/markdown-email"
+SYSTEMD_TARGET="${HOME}/.config/systemd/user"
 MODE="symlink"
+INSTALL_SYSTEMD=0
 
 usage() {
   cat <<'EOF'
-Usage: scripts/install-local.sh [--copy]
+Usage: scripts/install-local.sh [--copy] [--systemd]
 
 Install the staged bot-tools helpers into the current account.
 
@@ -21,6 +23,7 @@ Defaults:
 
 Options:
 - --copy     copy files/directories instead of symlinking them
+- --systemd  also install example systemd user units into ~/.config/systemd/user
 EOF
 }
 
@@ -50,6 +53,10 @@ while [[ $# -gt 0 ]]; do
       MODE="copy"
       shift
       ;;
+    --systemd)
+      INSTALL_SYSTEMD=1
+      shift
+      ;;
     -h|--help)
       usage
       exit 0
@@ -65,6 +72,7 @@ done
 mkdir -p "$BIN_TARGET" "$SKILLS_ROOT"
 
 for helper in "$REPO_ROOT"/bin/*; do
+  [[ -f "$helper" ]] || continue
   name="$(basename "$helper")"
   target="${BIN_TARGET}/${name}"
   if [[ "$MODE" == "copy" ]]; then
@@ -83,3 +91,18 @@ else
 fi
 
 echo "Installed skill: ${SKILL_TARGET}"
+
+if [[ "$INSTALL_SYSTEMD" == "1" ]]; then
+  mkdir -p "$SYSTEMD_TARGET"
+  for unit in "$REPO_ROOT"/systemd/user/*; do
+    [[ -f "$unit" ]] || continue
+    name="$(basename "$unit")"
+    target="${SYSTEMD_TARGET}/${name}"
+    if [[ "$MODE" == "copy" ]]; then
+      install -m 0644 "$unit" "$target"
+    else
+      link_path "$unit" "$target"
+    fi
+    echo "Installed user unit: ${target}"
+  done
+fi

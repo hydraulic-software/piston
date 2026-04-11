@@ -1,0 +1,49 @@
+#!/usr/bin/env python3
+import email
+import email.utils
+import mailbox
+import os
+from pathlib import Path
+import sys
+
+
+HOME = Path.home()
+MAILDIR = Path(os.environ.get("BOT_MAILDIR", str(HOME / "Maildir")))
+LOG_PATH = Path(
+    os.environ.get("BOT_MAIL_FILTER_LOG", str(HOME / ".local/state/axiom/mail-filter.log"))
+)
+ALLOWED_DOMAINS = {
+    domain.strip().lower()
+    for domain in os.environ.get("BOT_ALLOWED_FROM_DOMAINS", "").split(",")
+    if domain.strip()
+}
+
+
+def sender_allowed(raw_message: bytes) -> tuple[bool, str]:
+    msg = email.message_from_bytes(raw_message)
+    from_header = msg.get("From", "")
+    _, addr = email.utils.parseaddr(from_header)
+    domain = addr.rsplit("@", 1)[-1].lower() if "@" in addr else ""
+    if not ALLOWED_DOMAINS:
+        return True, addr or from_header or "(missing From)"
+    return domain in ALLOWED_DOMAINS, addr or from_header or "(missing From)"
+
+
+def log_drop(sender: str) -> None:
+    LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
+    with LOG_PATH.open("a", encoding="utf-8") as handle:
+        handle.write(f"dropped sender={sender}\n")
+
+
+def main() -> int:
+    raw_message = sys.stdin.buffer.read()
+    allowed, sender = sender_allowed(raw_message)
+    if allowed:
+        mailbox.Maildir(str(MAILDIR), factory=None, create=True).add(raw_message)
+    else:
+        log_drop(sender)
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

@@ -1,0 +1,11 @@
+[Unit]
+Description=Nightly Codex maintenance wakeup
+
+[Timer]
+OnCalendar=*-*-* 03:30
+RandomizedDelaySec=30m
+Persistent=true
+Unit=axiom-nightly.service
+
+[Install]
+WantedBy=timers.target

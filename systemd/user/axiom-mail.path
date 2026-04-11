@@ -1,0 +1,9 @@
+[Unit]
+Description=Watch Maildir for new mail and wake Codex
+
+[Path]
+PathChanged=%h/Maildir/new
+Unit=axiom-mail.service
+
+[Install]
+WantedBy=default.target

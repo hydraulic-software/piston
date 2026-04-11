@@ -7,6 +7,7 @@ REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 BIN_TARGET="${HOME}/.local/bin"
 SKILLS_ROOT="${CODEX_HOME:-${HOME}/.codex}/skills"
 SKILL_TARGET="${SKILLS_ROOT}/markdown-email"
+SYSTEMD_TARGET="${HOME}/.config/systemd/user"
 
 usage() {
   cat <<'EOF'
@@ -19,6 +20,7 @@ This removes:
 - ~/.local/bin/axiom-teamcity-watch
 - ~/.local/bin/axiom-todo
 - ${CODEX_HOME:-~/.codex}/skills/markdown-email
+- matching example user units from ~/.config/systemd/user
 
 It only removes the exact installed entry names from this staged slice.
 EOF
@@ -49,8 +51,15 @@ while [[ $# -gt 0 ]]; do
 done
 
 for helper in "$REPO_ROOT"/bin/*; do
+  [[ -f "$helper" ]] || continue
   name="$(basename "$helper")"
   remove_if_present "${BIN_TARGET}/${name}"
 done
 
 remove_if_present "$SKILL_TARGET"
+
+for unit in "$REPO_ROOT"/systemd/user/*; do
+  [[ -f "$unit" ]] || continue
+  name="$(basename "$unit")"
+  remove_if_present "${SYSTEMD_TARGET}/${name}"
+done

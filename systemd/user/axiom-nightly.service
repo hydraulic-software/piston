@@ -1,0 +1,7 @@
+[Unit]
+Description=Nightly Codex maintenance wakeup
+
+[Service]
+Type=oneshot
+WorkingDirectory=%h
+ExecStart=%h/.local/bin/axiom-codex-runner nightly

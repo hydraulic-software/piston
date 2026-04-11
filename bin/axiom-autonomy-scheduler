@@ -1,0 +1,159 @@
+#!/usr/bin/env python3
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import tempfile
+from dataclasses import dataclass
+from datetime import datetime, timezone
+from pathlib import Path
+
+
+HOME = Path.home()
+STATE_FILE = Path(
+    os.environ.get("BOT_AUTONOMY_STATE_FILE", str(HOME / ".local/state/axiom/autonomy-schedule.json"))
+)
+TODO_FILE = Path(os.environ.get("BOT_TODO_FILE", str(HOME / ".local/state/axiom/todo.json")))
+
+
+@dataclass
+class ScheduleDecision:
+    active_count: int
+    started_count: int
+    interval_seconds: int
+    reason: str
+
+
+def load_json(path: Path) -> dict:
+    if not path.exists():
+        return {}
+    text = path.read_text().strip()
+    if not text:
+        return {}
+    return json.loads(text)
+
+
+def save_json(path: Path, data: dict) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with tempfile.NamedTemporaryFile("w", encoding="utf-8", dir=path.parent, delete=False) as tmp:
+        json.dump(data, tmp, indent=2, ensure_ascii=False)
+        tmp.write("\n")
+        tmp_path = Path(tmp.name)
+    tmp_path.replace(path)
+
+
+def count_active_todos() -> tuple[int, int]:
+    data = load_json(TODO_FILE)
+    items = data.get("items", [])
+    active = 0
+    started = 0
+    for item in items:
+        if not isinstance(item, dict):
+            continue
+        status = str(item.get("status", "")).lower()
+        if status == "done":
+            continue
+        active += 1
+        if status == "started":
+            started += 1
+    return active, started
+
+
+def choose_schedule(active_count: int, started_count: int) -> ScheduleDecision:
+    if active_count >= 1:
+        return ScheduleDecision(active_count, started_count, 900, "backlog is active")
+    return ScheduleDecision(active_count, started_count, 21600, "only routine maintenance remains")
+
+
+def load_last_run() -> datetime | None:
+    data = load_json(STATE_FILE)
+    stamp = data.get("last_timer_run")
+    if not stamp:
+        return None
+    return datetime.fromisoformat(str(stamp))
+
+
+def record_run(now: datetime) -> None:
+    data = load_json(STATE_FILE)
+    data["last_timer_run"] = now.isoformat()
+    save_json(STATE_FILE, data)
+
+
+def format_interval(seconds: int) -> str:
+    hours, rem = divmod(seconds, 3600)
+    minutes = rem // 60
+    if hours and minutes:
+        return f"{hours}h{minutes:02d}m"
+    if hours:
+        return f"{hours}h"
+    return f"{minutes}m"
+
+
+def build_status(now: datetime) -> tuple[ScheduleDecision, datetime | None, float]:
+    active_count, started_count = count_active_todos()
+    decision = choose_schedule(active_count, started_count)
+    last_run = load_last_run()
+    elapsed = 0.0 if last_run is None else max(0.0, (now - last_run).total_seconds())
+    return decision, last_run, elapsed
+
+
+def cmd_status(_args: argparse.Namespace) -> int:
+    now = datetime.now(timezone.utc)
+    decision, last_run, elapsed = build_status(now)
+    payload = {
+        "active_todos": decision.active_count,
+        "started_todos": decision.started_count,
+        "target_interval_seconds": decision.interval_seconds,
+        "target_interval": format_interval(decision.interval_seconds),
+        "reason": decision.reason,
+        "last_timer_run": None if last_run is None else last_run.isoformat(),
+        "elapsed_seconds": int(elapsed),
+        "due": last_run is None or elapsed >= decision.interval_seconds,
+    }
+    print(json.dumps(payload, indent=2, sort_keys=True))
+    return 0
+
+
+def cmd_due(_args: argparse.Namespace) -> int:
+    now = datetime.now(timezone.utc)
+    decision, last_run, elapsed = build_status(now)
+    due = last_run is None or elapsed >= decision.interval_seconds
+    state = "due" if due else "defer"
+    print(
+        f"{state}\tactive={decision.active_count}\tstarted={decision.started_count}\t"
+        f"interval={format_interval(decision.interval_seconds)}\treason={decision.reason}"
+    )
+    return 0 if due else 1
+
+
+def cmd_record(_args: argparse.Namespace) -> int:
+    record_run(datetime.now(timezone.utc))
+    print("recorded")
+    return 0
+
+
+def build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(description="Choose workload-sensitive autonomy timing.")
+    sub = parser.add_subparsers(dest="command", required=True)
+
+    p_status = sub.add_parser("status", help="Print current schedule state as JSON")
+    p_status.set_defaults(func=cmd_status)
+
+    p_due = sub.add_parser("due", help="Exit 0 when a timer wakeup should run now")
+    p_due.set_defaults(func=cmd_due)
+
+    p_record = sub.add_parser("record", help="Record a successful timer wakeup")
+    p_record.set_defaults(func=cmd_record)
+
+    return parser
+
+
+def main() -> int:
+    parser = build_parser()
+    args = parser.parse_args()
+    return args.func(args)
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

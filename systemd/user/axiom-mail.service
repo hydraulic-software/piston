@@ -1,0 +1,7 @@
+[Unit]
+Description=Wake Codex because new mail arrived
+
+[Service]
+Type=oneshot
+WorkingDirectory=%h
+ExecStart=%h/.local/bin/axiom-codex-runner mail

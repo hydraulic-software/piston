@@ -1,6 +1,6 @@
 # Local Install
 
-This staging repo is still intentionally small, so the install story is small too.
+This repo is still intentionally small, so the install story is still lightweight too.
 
 ## Quick start
 
@@ -15,6 +15,14 @@ That will:
 - symlink all helpers from `bin/` into `~/.local/bin`
 - symlink `skills/markdown-email` into `${CODEX_HOME:-~/.codex}/skills/markdown-email`
 
+If you also want the example Linux user units:
+
+```bash
+scripts/install-local.sh --systemd
+```
+
+That additionally installs the example files from `systemd/user/` into `~/.config/systemd/user`.
+
 ## Copy mode
 
 If you want a standalone copy instead of live symlinks:
@@ -23,7 +31,7 @@ If you want a standalone copy instead of live symlinks:
 scripts/install-local.sh --copy
 ```
 
-That copies the helper scripts and the skill directory into the same targets.
+That copies the helper scripts and the skill directory into the same targets. You can combine it with `--systemd` if you want copied user units too.
 
 ## Uninstall
 
@@ -33,16 +41,14 @@ To remove the staged helper slice from the current account:
 scripts/uninstall-local.sh
 ```
 
-That removes the three helper entry names from `~/.local/bin` and the staged `markdown-email` skill from `${CODEX_HOME:-~/.codex}/skills`.
+That removes the installed helper entry names from `~/.local/bin`, the staged `markdown-email` skill from `${CODEX_HOME:-~/.codex}/skills`, and any matching example user-unit files from `~/.config/systemd/user`.
 
 ## What it does not install
 
-This repo only stages the portable helper slice. It does not install any of the HQ-specific overlay pieces from `profiles/hq-axiom/`, such as:
+This repo now includes a Linux automation slice too, but it still does not install the more HQ-specific overlay pieces from `profiles/hq-axiom/`, such as:
 
-- user `systemd` units
-- the Codex runner
 - the monitor renderer/publisher
-- mail filtering policy
+- HQ-specific mail filtering policy defaults
 
 ## Expectations
 
@@ -58,4 +64,4 @@ To verify the staged slice without touching your real account state:
 scripts/check.sh
 ```
 
-That script syntax-checks the Python helpers, syntax-checks the installer, and runs a throwaway install into a temporary `HOME` / `CODEX_HOME`.
+That script syntax-checks the Python helpers, syntax-checks the installer, and runs a throwaway install into a temporary `HOME` / `CODEX_HOME`, including the example user-unit files.
