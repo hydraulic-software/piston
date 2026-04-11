@@ -1,0 +1,29 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+export HOME="${HOME:-$(cd ~ && pwd)}"
+export USER="${USER:-$(id -un)}"
+export PATH="${HOME}/.local/bin:/usr/local/bin:/usr/bin:/bin"
+
+render() {
+  "${HOME}/.local/bin/axiom-render-codex-monitor"
+}
+
+render
+
+while read -r _; do
+  # Codex updates the SQLite/WAL files in bursts; drain nearby events so the
+  # monitor does one render per burst instead of one render per write.
+  while read -r -t 1 _; do
+    :
+  done
+  render
+done < <(
+  inotifywait -m -r \
+    -e close_write,create,move,delete \
+    "${HOME}/.codex/sessions" \
+    "${HOME}/.local/state/axiom/runs" \
+    "${HOME}/.local/state/axiom/todo.json" \
+    "${HOME}/.codex/state_5.sqlite" \
+    "${HOME}/.codex/state_5.sqlite-wal"
+)

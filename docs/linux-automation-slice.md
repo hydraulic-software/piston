@@ -26,7 +26,6 @@ Included:
 
 Not included yet:
 
-- the Codex monitor renderer/watcher/publishing stack
 - host-specific profile state
 - HQ-specific mail-domain policy defaults
 

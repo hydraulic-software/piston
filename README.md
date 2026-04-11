@@ -7,6 +7,8 @@ This is intentionally a small first slice:
 - `bin/axiom-autonomy-scheduler`
 - `bin/axiom-codex-runner`
 - `bin/axiom-mail-filter`
+- `bin/axiom-render-codex-monitor`
+- `bin/axiom-watch-codex-monitor`
 - `bin/axiom-send-markdown-mail`
 - `bin/axiom-teamcity-watch`
 - `bin/axiom-todo`
@@ -42,6 +44,13 @@ The goal is to prove the extraction boundary before attempting to move more HQ-s
   - `BOT_ALLOWED_FROM_DOMAINS`
   - `BOT_MAILDIR`
   - `BOT_MAIL_FILTER_LOG`
+- `axiom-render-codex-monitor`
+  - `BOT_CODEX_STATE_DB`
+  - `BOT_MONITOR_OUTPUT_DIR`
+  - `BOT_MONITOR_AVATAR`
+  - `BOT_MONITOR_FAVICON_NAME`
+  - `BOT_TODO_FILE`
+  - `BOT_RUN_LOG_DIR`
 
 ## Layout
 
@@ -79,7 +88,7 @@ For the Linux automation slice as well:
 scripts/install-local.sh --systemd
 ```
 
-See [`docs/install.md`](docs/install.md) for the symlink-vs-copy behavior and current assumptions, and [`docs/linux-automation-slice.md`](docs/linux-automation-slice.md) for the Linux user-unit layer.
+See [`docs/install.md`](docs/install.md) for the symlink-vs-copy behavior and current assumptions, [`docs/linux-automation-slice.md`](docs/linux-automation-slice.md) for the Linux user-unit layer, and [`docs/monitor-slice.md`](docs/monitor-slice.md) for the shared monitor layer.
 
 For the matching removal path:
 

@@ -45,9 +45,8 @@ That removes the installed helper entry names from `~/.local/bin`, the staged `m
 
 ## What it does not install
 
-This repo now includes a Linux automation slice too, but it still does not install the more HQ-specific overlay pieces from `profiles/hq-axiom/`, such as:
+This repo now includes a Linux automation slice and a reusable monitor slice too, but it still does not install the more HQ-specific overlay pieces from `profiles/hq-axiom/`, such as:
 
-- the monitor renderer/publisher
 - HQ-specific mail filtering policy defaults
 
 ## Expectations

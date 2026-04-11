@@ -1,0 +1,838 @@
+#!/usr/bin/env python3
+from __future__ import annotations
+
+import datetime as dt
+import json
+import os
+import sqlite3
+import re
+from pathlib import Path
+
+import markdown
+try:
+    from PIL import Image
+except ImportError:
+    Image = None
+
+
+HOME = Path.home()
+STATE_DB = Path(os.environ.get("BOT_CODEX_STATE_DB", str(HOME / ".codex" / "state_5.sqlite")))
+OUTPUT_DIR = Path(os.environ.get("BOT_MONITOR_OUTPUT_DIR", str(HOME / "private_html")))
+AVATAR_SOURCE = Path(
+    os.environ.get("BOT_MONITOR_AVATAR", str(HOME / ".local" / "share" / "axiom" / "axiom-avatar.png"))
+)
+FAVICON_NAME = os.environ.get("BOT_MONITOR_FAVICON_NAME", "axiom-favicon.png")
+TODO_FILE = Path(os.environ.get("BOT_TODO_FILE", str(HOME / ".local" / "state" / "axiom" / "todo.json")))
+RUN_LOG_DIR = Path(os.environ.get("BOT_RUN_LOG_DIR", str(HOME / ".local" / "state" / "axiom" / "runs")))
+
+
+def load_threads(limit: int = 40) -> list[dict]:
+    con = sqlite3.connect(STATE_DB)
+    con.row_factory = sqlite3.Row
+    cur = con.cursor()
+    cur.execute(
+        """
+        SELECT id, rollout_path, created_at, updated_at, cwd, title, model
+        FROM threads
+        WHERE archived = 0
+          AND agent_nickname IS NULL
+          AND agent_role IS NULL
+          AND agent_path IS NULL
+        ORDER BY updated_at DESC
+        LIMIT ?
+        """,
+        (limit,),
+    )
+    rows = [dict(row) for row in cur.fetchall()]
+    con.close()
+    return rows
+
+
+def iso_to_local_dt(value: str) -> dt.datetime:
+    return dt.datetime.fromisoformat(value.replace("Z", "+00:00")).astimezone()
+
+
+def dt_string(value: dt.datetime) -> str:
+    return value.strftime("%Y-%m-%d %H:%M:%S %Z")
+
+
+def short_path(path: str) -> str:
+    return path.replace(str(HOME), "~")
+
+
+def render_markdown(text: str) -> str:
+    return markdown.markdown(text, extensions=["extra", "sane_lists", "nl2br"])
+
+
+def strip_html(text: str) -> str:
+    return re.sub(r"<[^>]+>", "", text)
+
+
+def summarize_text(text: str, max_len: int = 120) -> str:
+    flat = " ".join(text.split())
+    if len(flat) <= max_len:
+        return flat
+    return flat[: max_len - 1] + "…"
+
+
+def first_sentence(text: str, max_len: int = 160) -> str:
+    flat = " ".join(text.split())
+    if not flat:
+        return ""
+    match = re.search(r"(.+?[.!?])(?:\s|$)", flat)
+    if match:
+        return summarize_text(match.group(1), max_len)
+    return summarize_text(flat, max_len)
+
+
+def load_todos(day: str) -> list[dict]:
+    if not TODO_FILE.exists():
+        return []
+
+    try:
+        payload = json.loads(TODO_FILE.read_text())
+    except Exception:
+        return []
+
+    items = []
+    for index, item in enumerate(payload.get("items", [])):
+        if not isinstance(item, dict):
+            continue
+        status = str(item.get("status", "pending")).lower()
+        if status not in {"pending", "started", "done"}:
+            status = "pending"
+        done_day = str(item.get("done_day", "") or "")
+        if status == "done" and done_day and done_day < day:
+            continue
+        items.append(
+            {
+                "id": item.get("id") or f"todo-{index}",
+                "text": str(item.get("text", "")).strip(),
+                "status": status,
+                "updated_day": str(item.get("updated_day", "") or ""),
+                "done_day": done_day,
+            }
+        )
+    return [item for item in items if item["text"]]
+
+
+def load_run_summaries() -> list[dict]:
+    summaries = []
+    for path in sorted(RUN_LOG_DIR.glob("*.summary.json")):
+        match = re.match(r"(\d{8}T\d{6})-(mail|timer|nightly)\.summary\.json$", path.name)
+        if not match:
+            continue
+        try:
+            payload = json.loads(path.read_text())
+        except Exception:
+            continue
+        ts = dt.datetime.strptime(match.group(1), "%Y%m%dT%H%M%S").astimezone().timestamp()
+        mode = match.group(2)
+        kind = {"mail": "mail", "timer": "autonomy", "nightly": "other"}.get(mode, "other")
+        summaries.append(
+            {
+                "path": path,
+                "ts": ts,
+                "mode": mode,
+                "kind": kind,
+                "headline": str(payload.get("headline", "") or "").strip(),
+                "prompt": str(payload.get("prompt", "") or "").strip(),
+            }
+        )
+    return summaries
+
+
+def apply_structured_summaries(wakeups: list[dict]) -> None:
+    summaries = load_run_summaries()
+    used_paths: set[Path] = set()
+    for wakeup in sorted(wakeups, key=lambda item: item["start_ts"]):
+        candidates = [
+            summary
+            for summary in summaries
+            if summary["path"] not in used_paths
+            and summary["kind"] == wakeup["kind"]
+            and abs(summary["ts"] - wakeup["start_ts"]) <= 900
+        ]
+        if not candidates:
+            continue
+        summary = min(candidates, key=lambda item: abs(item["ts"] - wakeup["start_ts"]))
+        used_paths.add(summary["path"])
+        headline = summary["headline"]
+        if headline:
+            wakeup["headline"] = summarize_text(headline, 160)
+            wakeup["used_structured_summary"] = True
+
+
+def write_favicon() -> None:
+    if Image is None or not AVATAR_SOURCE.exists():
+        return
+
+    img = Image.open(AVATAR_SOURCE).convert("RGBA")
+    img.thumbnail((64, 64), Image.Resampling.LANCZOS)
+    canvas = Image.new("RGBA", (64, 64), (0, 0, 0, 0))
+    left = (64 - img.width) // 2
+    top = (64 - img.height) // 2
+    canvas.paste(img, (left, top), img)
+    canvas.save(OUTPUT_DIR / FAVICON_NAME)
+
+
+def tool_summary(name: str, body: str) -> str:
+    try:
+        parsed = json.loads(body)
+    except Exception:
+        return name
+    if name == "exec_command":
+        return parsed.get("cmd", name)
+    if name == "parallel":
+        return f"parallel ({len(parsed.get('tool_uses', []))} calls)"
+    if name == "update_plan":
+        return "update plan"
+    if name == "apply_patch":
+        return "apply patch"
+    return name
+
+
+def pretty_json_string(value: str) -> str:
+    try:
+        return json.dumps(json.loads(value), indent=2, ensure_ascii=False)
+    except Exception:
+        return value
+
+
+def tool_detail(name: str, body: str) -> str:
+    try:
+        parsed = json.loads(body)
+    except Exception:
+        return body
+    if name == "exec_command":
+        return parsed.get("cmd", "")
+    return pretty_json_string(body)
+
+
+def wakeup_kind(prompt: str) -> str:
+    lowered = prompt.lower()
+    if "mail" in lowered:
+        return "mail"
+    if "autonomous" in lowered:
+        return "autonomy"
+    return "other"
+
+
+def clean_prompt(prompt: str) -> str:
+    text = " ".join(prompt.split())
+    text = re.sub(r"^The time is .*?\.\s*", "", text, count=1)
+    text = text.replace("You've got mail! Find it in your ~/Maildir", "").strip()
+
+    if not text and "mail" in prompt.lower():
+        return "Mail check"
+    if text == "You have received new mail in your ~/Maildir":
+        return "Mail check"
+    if text.startswith("Autonomous check-in:"):
+        return "Autonomous check-in"
+    if text.startswith("Nightly maintenance wakeup:"):
+        return "Nightly maintenance"
+    return summarize_text(text, 140)
+
+
+def parse_rollout(thread: dict) -> list[dict]:
+    path = Path(thread["rollout_path"])
+    if not path.exists():
+        return []
+
+    wakeups: list[dict] = []
+    current: dict | None = None
+    pending_tools: dict[str, dict] = {}
+    prelude_entries: list[dict] = []
+    prelude_start: dt.datetime | None = None
+
+    def append_entry(at: dt.datetime, entry: dict) -> None:
+        nonlocal prelude_start
+        if current is None:
+            if prelude_start is None:
+                prelude_start = at
+            prelude_entries.append(entry)
+        else:
+            current["entries"].append(entry)
+
+    def begin_wakeup(prompt: str, at: dt.datetime) -> dict:
+        nonlocal current, prelude_entries, prelude_start
+        start_at = prelude_start or at
+        current = {
+            "id": f"{thread['id']}-{len(wakeups) + 1}",
+            "thread_id": thread["id"],
+            "thread_title": thread["title"],
+            "cwd": short_path(thread["cwd"]),
+            "model": thread.get("model") or "unknown",
+            "prompt": prompt,
+            "kind": wakeup_kind(prompt),
+            "start_iso": dt_string(start_at),
+            "end_iso": dt_string(at),
+            "start_ts": start_at.timestamp(),
+            "end_ts": at.timestamp(),
+            "day": start_at.strftime("%Y-%m-%d"),
+            "entries": prelude_entries,
+        }
+        wakeups.append(current)
+        prelude_entries = []
+        prelude_start = None
+        return current
+
+    def bootstrap_wakeup() -> None:
+        nonlocal current, prelude_entries, prelude_start
+        if current is not None or not prelude_entries or prelude_start is None:
+            return
+        prompt = thread["title"]
+        current = {
+            "id": f"{thread['id']}-bootstrap",
+            "thread_id": thread["id"],
+            "thread_title": thread["title"],
+            "cwd": short_path(thread["cwd"]),
+            "model": thread.get("model") or "unknown",
+            "prompt": prompt,
+            "kind": wakeup_kind(prompt),
+            "start_iso": dt_string(prelude_start),
+            "end_iso": dt_string(prelude_start),
+            "start_ts": prelude_start.timestamp(),
+            "end_ts": prelude_start.timestamp(),
+            "day": prelude_start.strftime("%Y-%m-%d"),
+            "entries": prelude_entries,
+        }
+        wakeups.append(current)
+        prelude_entries = []
+        prelude_start = None
+
+    for raw in path.read_text().splitlines():
+        obj = json.loads(raw)
+        at = iso_to_local_dt(obj["timestamp"])
+        when = dt_string(at)
+        event_type = obj.get("type")
+        payload = obj.get("payload", {})
+
+        if event_type == "event_msg":
+            kind = payload.get("type")
+            if kind == "user_message":
+                prompt = payload.get("message", "")
+                begin_wakeup(prompt, at)
+            elif kind == "agent_message":
+                if current is not None:
+                    current["end_iso"] = when
+                    current["end_ts"] = at.timestamp()
+                phase = payload.get("phase", "commentary")
+                message = payload.get("message", "")
+                append_entry(
+                    at,
+                    {
+                        "kind": "message",
+                        "role": "final" if phase == "final_answer" else "commentary",
+                        "ts": at.timestamp(),
+                        "when": when,
+                        "html": render_markdown(message),
+                        "plain": message,
+                    }
+                )
+            elif kind == "task_complete":
+                continue
+        elif event_type == "response_item":
+            kind = payload.get("type")
+            if current is not None:
+                current["end_iso"] = when
+                current["end_ts"] = at.timestamp()
+            if kind == "reasoning":
+                summary = payload.get("summary") or []
+                if summary:
+                    append_entry(
+                        at,
+                        {
+                            "kind": "reasoning",
+                            "role": "reasoning",
+                            "ts": at.timestamp(),
+                            "when": when,
+                            "html": render_markdown("\n".join(summary)),
+                            "plain": "\n".join(summary),
+                        }
+                    )
+            elif kind in {"function_call", "custom_tool_call"}:
+                title = payload.get("name", kind)
+                body = payload.get("arguments") if kind == "function_call" else payload.get("input", "")
+                entry = {
+                    "kind": "tool",
+                    "role": "tool",
+                    "ts": at.timestamp(),
+                    "when": when,
+                    "title": title,
+                    "summary": tool_summary(title, body or ""),
+                    "details": tool_detail(title, body or ""),
+                    "output": "",
+                }
+                append_entry(at, entry)
+                pending_tools[payload.get("call_id", "")] = entry
+            elif kind in {"function_call_output", "custom_tool_call_output"}:
+                entry = pending_tools.get(payload.get("call_id", ""))
+                if entry is None:
+                    entry = {
+                        "kind": "tool",
+                        "role": "tool",
+                        "ts": at.timestamp(),
+                        "when": when,
+                        "title": "tool",
+                        "summary": "tool activity",
+                        "details": "",
+                        "output": payload.get("output", ""),
+                    }
+                    append_entry(at, entry)
+                else:
+                    entry["output"] = payload.get("output", "")
+                    entry["ts"] = at.timestamp()
+                    entry["when"] = when
+                    entry["summary"] = summarize_text(entry["summary"], 72)
+
+    bootstrap_wakeup()
+
+    for wakeup in wakeups:
+        latest_ts = max((entry.get("ts", wakeup["start_ts"]) for entry in wakeup["entries"]), default=wakeup["start_ts"])
+        wakeup["end_ts"] = max(latest_ts, wakeup["start_ts"] + 60)
+        wakeup["end_iso"] = dt_string(dt.datetime.fromtimestamp(wakeup["end_ts"]).astimezone())
+
+    wakeups.sort(key=lambda item: item["start_ts"])
+    for index, wakeup in enumerate(wakeups[:-1]):
+        next_start = wakeups[index + 1]["start_ts"]
+        if wakeup["end_ts"] > next_start:
+            wakeup["end_ts"] = next_start
+            wakeup["end_iso"] = dt_string(dt.datetime.fromtimestamp(next_start).astimezone())
+    for wakeup in wakeups:
+        if wakeup["end_ts"] <= wakeup["start_ts"]:
+            wakeup["end_ts"] = wakeup["start_ts"] + 60
+            wakeup["end_iso"] = wakeup["start_iso"]
+
+    wakeups.sort(key=lambda item: item["start_ts"], reverse=True)
+    for wakeup in wakeups:
+        display_entries = []
+        group_index = 0
+        for entry in reversed(wakeup["entries"]):
+            if entry["kind"] == "tool":
+                if display_entries and display_entries[-1]["kind"] == "tool_group":
+                    display_entries[-1]["items"].append(entry)
+                else:
+                    display_entries.append(
+                        {
+                            "kind": "tool_group",
+                            "id": f"{wakeup['id']}-tools-{group_index}",
+                            "items": [entry],
+                        }
+                    )
+                    group_index += 1
+            else:
+                display_entries.append(entry)
+        wakeup["display_entries"] = display_entries
+        wakeup["label"] = clean_prompt(wakeup["prompt"])
+        final_entry = next((entry for entry in wakeup["entries"] if entry.get("role") == "final"), None)
+        tooltip = final_entry.get("plain") if final_entry else None
+        if tooltip is None:
+            latest_message = next((entry.get("plain") for entry in reversed(wakeup["entries"]) if entry.get("plain")), None)
+            tooltip = latest_message or wakeup["label"] or wakeup["prompt"]
+        wakeup["tooltip"] = summarize_text(strip_html(tooltip), 120)
+        headline_source = final_entry.get("plain") if final_entry else None
+        if headline_source is None:
+            headline_source = next((entry.get("plain") for entry in wakeup["entries"] if entry.get("plain")), None)
+        wakeup["headline"] = first_sentence(strip_html(headline_source or wakeup["label"] or wakeup["prompt"]))
+        meta_bits = []
+        if wakeup["label"] and wakeup["label"] != wakeup["headline"]:
+            meta_bits.append(wakeup["label"])
+        if wakeup["cwd"] != "~":
+            meta_bits.append(wakeup["cwd"])
+        thread_title = wakeup["thread_title"].strip()
+        noisy_thread_title = (
+            "maildir" in thread_title.lower()
+            or thread_title.startswith("Autonomous check-in:")
+            or thread_title.startswith("Nightly maintenance wakeup:")
+            or thread_title.startswith("The time is ")
+        )
+        if thread_title and not noisy_thread_title and thread_title not in {wakeup["prompt"], wakeup["label"], wakeup["headline"]}:
+            meta_bits.append(thread_title)
+        wakeup["context"] = " • ".join(meta_bits)
+
+    apply_structured_summaries(wakeups)
+    return wakeups
+
+
+def build_days() -> list[dict]:
+    wakeups: list[dict] = []
+    for thread in load_threads():
+        wakeups.extend(parse_rollout(thread))
+
+    wakeups.sort(key=lambda item: item["start_ts"], reverse=True)
+
+    day_map: dict[str, list[dict]] = {}
+    for wakeup in wakeups:
+        day_map.setdefault(wakeup["day"], []).append(wakeup)
+
+    days: list[dict] = []
+    for day in sorted(day_map.keys(), reverse=True):
+        day_dt = dt.datetime.fromisoformat(day)
+        start = day_dt.replace(tzinfo=dt.datetime.now().astimezone().tzinfo)
+        segments = []
+        timeline_wakeups = sorted(day_map[day], key=lambda item: item["start_ts"])
+        for index, wakeup in enumerate(timeline_wakeups):
+            left = ((wakeup["start_ts"] - start.timestamp()) / 86400) * 100
+            width = max(((wakeup["end_ts"] - wakeup["start_ts"]) / 86400) * 100, 0.35)
+            prev_end = timeline_wakeups[index - 1]["end_ts"] if index > 0 else start.timestamp()
+            next_start = timeline_wakeups[index + 1]["start_ts"] if index + 1 < len(timeline_wakeups) else start.timestamp() + 86400
+            hit_start_ts = prev_end + ((wakeup["start_ts"] - prev_end) / 2)
+            hit_end_ts = wakeup["end_ts"] + ((next_start - wakeup["end_ts"]) / 2)
+            hit_left = max(((hit_start_ts - start.timestamp()) / 86400) * 100, 0)
+            hit_width = min(((hit_end_ts - hit_start_ts) / 86400) * 100, 100 - hit_left)
+            if hit_width <= 0:
+                hit_left = max(left, 0)
+                hit_width = min(width, 100 - hit_left)
+            inner_left = ((max(left, hit_left) - hit_left) / hit_width) * 100 if hit_width else 0
+            inner_width = min((width / hit_width) * 100, 100) if hit_width else 100
+            segments.append(
+                {
+                    "href": f"#{wakeup['id']}",
+                    "left": max(left, 0),
+                    "width": min(width, 100),
+                    "hit_left": hit_left,
+                    "hit_width": hit_width,
+                    "inner_left": max(inner_left, 0),
+                    "inner_width": max(inner_width, 2),
+                    "kind": wakeup["kind"],
+                    "shade": index % 2,
+                    "title": f"{wakeup['start_iso']} - {wakeup['tooltip']}",
+                }
+            )
+        days.append({"day": day, "wakeups": day_map[day], "segments": segments, "todos": load_todos(day)})
+    return days
+
+
+def write_index(days: list[dict]) -> None:
+    cards = []
+    for day in days:
+        link = f"{day['day']}.html"
+        cards.append(
+            f"""
+            <a class="day-card" href="{link}">
+              <div class="day-line">
+                <strong>{day['day']}</strong>
+                <span>{len(day['wakeups'])} wakeups</span>
+              </div>
+              <div class="timeline">
+                {''.join(f'<span class="segment {seg["kind"]} shade-{seg["shade"]}" style="left:{seg["left"]:.3f}%;width:{seg["width"]:.3f}%"></span>' for seg in day['segments'])}
+              </div>
+            </a>
+            """
+        )
+
+    html = f"""<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Axiom Monitor</title>
+  <link rel="icon" type="image/png" href="{FAVICON_NAME}">
+  <style>
+    body {{ margin: 0; font-family: "IBM Plex Sans", "Segoe UI", sans-serif; background: #f4eee2; color: #1b2428; }}
+    .topbar {{ background: #1b2428; color: #f7f2e9; padding: 10px 14px; font-size: 0.9rem; }}
+    .wrap {{ max-width: 900px; margin: 0 auto; padding: 14px; display: grid; gap: 10px; }}
+    .day-card {{ display: grid; gap: 8px; padding: 12px 14px; border-radius: 14px; background: rgba(255,255,255,0.85); text-decoration: none; color: inherit; border: 1px solid rgba(27,36,40,0.1); }}
+    .day-line {{ display: flex; justify-content: space-between; gap: 12px; font-size: 0.95rem; }}
+    .day-line span {{ color: #627078; }}
+    .timeline {{ position: relative; height: 16px; background: rgba(27,36,40,0.08); overflow: hidden; }}
+    .segment {{ position: absolute; top: 0; height: 100%; box-sizing: border-box; border-right: 1px solid rgba(27,36,40,0.14); }}
+    .segment.shade-1 {{ filter: brightness(0.88); }}
+    .mail {{ background: #ff7a00; }}
+    .autonomy {{ background: #00a7d8; }}
+    .other {{ background: #ffd400; }}
+  </style>
+</head>
+<body>
+  <div class="topbar">Axiom Monitor index</div>
+  <main class="wrap">
+    {''.join(cards)}
+  </main>
+</body>
+</html>
+"""
+    (OUTPUT_DIR / "index.html").write_text(html)
+
+
+def day_shell(day: str) -> str:
+    return f"""<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Axiom Monitor {day}</title>
+  <link rel="icon" type="image/png" href="{FAVICON_NAME}">
+  <style>
+    :root {{
+      --bg: #f4eee2;
+      --panel: rgba(255,255,255,0.86);
+      --line: rgba(27,36,40,0.1);
+      --ink: #1b2428;
+      --muted: #627078;
+      --mail: #ff7a00;
+      --autonomy: #00a7d8;
+      --other: #ffd400;
+      --tool: rgba(27,36,40,0.035);
+      --tool-line: rgba(27,36,40,0.08);
+      --mono: "Iosevka Term", "SFMono-Regular", ui-monospace, monospace;
+    }}
+    body {{ margin: 0; font-family: "IBM Plex Sans", "Segoe UI", sans-serif; background: var(--bg); color: var(--ink); }}
+    .topbar {{ display: flex; justify-content: space-between; gap: 12px; align-items: center; background: #1b2428; color: #f7f2e9; padding: 9px 12px; font-size: 0.86rem; }}
+    .topbar a {{ color: #f7f2e9; }}
+    .wrap {{ max-width: 980px; margin: 0 auto; padding: 10px 12px 30px; }}
+    .timeline-wrap {{ margin: 8px 0 12px; }}
+    .timeline {{ position: relative; height: 18px; background: rgba(27,36,40,0.09); overflow: hidden; }}
+    .segment-slot {{ position: absolute; top: 0; height: 100%; }}
+    .segment {{ position: absolute; top: 0; height: 100%; box-sizing: border-box; border-right: 1px solid rgba(27,36,40,0.16); }}
+    .segment.mail {{ background: var(--mail); }}
+    .segment.autonomy {{ background: var(--autonomy); }}
+    .segment.other {{ background: var(--other); }}
+    .segment.shade-1 {{ filter: brightness(0.88); }}
+    .legend {{ display: flex; gap: 12px; margin-top: 6px; color: var(--muted); font-size: 0.78rem; flex-wrap: wrap; }}
+    .legend span::before {{ content: ""; display: inline-block; width: 10px; height: 10px; margin-right: 6px; border-radius: 999px; vertical-align: middle; }}
+    .legend .mail::before {{ background: var(--mail); }}
+    .legend .autonomy::before {{ background: var(--autonomy); }}
+    .legend .other::before {{ background: var(--other); }}
+    .todos {{ margin: 0 0 12px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 14px; background: var(--panel); }}
+    .todos-head {{ display: flex; justify-content: space-between; gap: 8px; align-items: baseline; margin-bottom: 6px; }}
+    .todos-head h2 {{ margin: 0; font-size: 0.95rem; }}
+    .todos-head span {{ color: var(--muted); font-size: 0.74rem; }}
+    .todo-list {{ display: grid; gap: 6px; }}
+    .todo {{ display: grid; grid-template-columns: auto 1fr auto; gap: 8px; align-items: start; border: 1px solid rgba(27,36,40,0.07); border-radius: 10px; padding: 7px 9px; background: rgba(255,255,255,0.7); }}
+    .todo-status {{ font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.05em; padding: 2px 6px; border-radius: 999px; color: #fff; }}
+    .todo.pending .todo-status {{ background: #b76b00; }}
+    .todo.started .todo-status {{ background: #007c9d; }}
+    .todo.done .todo-status {{ background: #2f8b57; }}
+    .todo-text {{ font-size: 0.9rem; line-height: 1.25; }}
+    .todo-meta {{ color: var(--muted); font-size: 0.72rem; white-space: nowrap; }}
+    .todo-empty {{ color: var(--muted); font-size: 0.85rem; }}
+    .feed {{ display: grid; gap: 10px; transition: opacity 180ms ease, transform 180ms ease; }}
+    .feed.updating {{ opacity: 0.55; transform: translateY(4px); }}
+    .wakeup {{ border: 1px solid var(--line); border-radius: 14px; background: var(--panel); overflow: hidden; }}
+    .wakeup-head {{ padding: 9px 10px; border-bottom: 1px solid rgba(27,36,40,0.06); }}
+    .wakeup-top {{ display: flex; justify-content: space-between; gap: 8px; color: var(--muted); font-size: 0.76rem; flex-wrap: wrap; margin-bottom: 4px; }}
+    .headline {{ margin: 0; font-size: 0.98rem; line-height: 1.24; font-weight: 700; }}
+    .sub {{ margin-top: 4px; color: var(--muted); font-size: 0.75rem; overflow-wrap: anywhere; }}
+    .entries {{ display: grid; gap: 4px; padding: 6px; }}
+    .entry {{ border: 1px solid rgba(27,36,40,0.07); border-radius: 10px; padding: 7px 9px; }}
+    .entry.is-new {{ animation: slide-in 320ms ease; }}
+    .entry.commentary {{ background: #fff8f2; }}
+    .entry.final {{ background: #f5fff7; border-left: 4px solid #2f8b57; }}
+    .entry.reasoning {{ background: #f6f2ff; border-left: 4px solid #7f63b7; }}
+    .entry.tool {{ background: var(--tool); color: var(--muted); border-color: var(--tool-line); padding: 4px 7px; }}
+    .entry-head {{ display: flex; justify-content: space-between; gap: 8px; flex-wrap: wrap; margin-bottom: 4px; }}
+    .label {{ font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); }}
+    .time {{ color: var(--muted); font-size: 0.72rem; }}
+    .md {{ line-height: 1.32; font-size: 0.92rem; }}
+    .md > :first-child {{ margin-top: 0; }}
+    .md > :last-child {{ margin-bottom: 0; }}
+    .md p {{ margin: 0.18rem 0; }}
+    .md pre, .md code {{ font-family: var(--mono); }}
+    .md pre {{ white-space: pre-wrap; overflow-wrap: anywhere; font-size: 0.78rem; }}
+    details {{ margin-top: 0; }}
+    summary {{ cursor: pointer; list-style: none; font-size: 0.76rem; }}
+    details pre {{ margin: 6px 0 0; padding: 0; white-space: pre-wrap; overflow-wrap: anywhere; font-family: var(--mono); font-size: 0.76rem; line-height: 1.24; }}
+    @keyframes slide-in {{
+      from {{ opacity: 0; transform: translateY(-8px); }}
+      to {{ opacity: 1; transform: translateY(0); }}
+    }}
+  </style>
+</head>
+<body>
+  <div class="topbar">
+    <span><a href="./">Index</a> / {day}</span>
+    <span id="status">Loading…</span>
+  </div>
+  <main class="wrap">
+    <section id="timeline-wrap" class="timeline-wrap"></section>
+    <section id="todos"></section>
+    <section id="feed" class="feed"></section>
+  </main>
+  <script>
+    const feedEl = document.getElementById('feed');
+    const timelineWrapEl = document.getElementById('timeline-wrap');
+    const todosEl = document.getElementById('todos');
+    const statusEl = document.getElementById('status');
+    let signature = '';
+    let initialized = false;
+    let knownEntryCounts = {{}};
+    const openToolGroups = new Set(JSON.parse(localStorage.getItem('axiom-open-tool-groups') || '[]'));
+
+    function escapeHtml(text) {{
+      return text
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;');
+    }}
+
+    function renderTimeline(data) {{
+      const segments = (data.segments || []).map(seg => `
+        <a class="segment-slot" href="${{seg.href}}" title="${{escapeHtml(seg.title)}}" style="left:${{seg.hit_left.toFixed(3)}}%;width:${{seg.hit_width.toFixed(3)}}%">
+          <span class="segment ${{seg.kind}} shade-${{seg.shade || 0}}" style="left:${{seg.inner_left.toFixed(3)}}%;width:${{seg.inner_width.toFixed(3)}}%"></span>
+        </a>
+      `).join('');
+      return `
+        <div class="timeline">${{segments}}</div>
+        <div class="legend">
+          <span class="mail">mail</span>
+          <span class="autonomy">autonomy</span>
+          <span class="other">other</span>
+        </div>
+      `;
+    }}
+
+    function renderTodos(data) {{
+      const todos = data.todos || [];
+      if (!todos.length) {{
+        return `
+          <section class="todos">
+            <div class="todos-head">
+              <h2>Todo</h2>
+              <span>rolling list</span>
+            </div>
+            <div class="todo-empty">No open items recorded.</div>
+          </section>
+        `;
+      }}
+      return `
+        <section class="todos">
+          <div class="todos-head">
+            <h2>Todo</h2>
+            <span>${{todos.length}} active for this day</span>
+          </div>
+          <div class="todo-list">
+            ${{
+              todos.map(todo => `
+                <article class="todo ${{todo.status}}">
+                  <span class="todo-status">${{escapeHtml(todo.status)}}</span>
+                  <div class="todo-text">${{escapeHtml(todo.text)}}</div>
+                  <div class="todo-meta">${{escapeHtml(todo.done_day || todo.updated_day || '')}}</div>
+                </article>
+              `).join('')
+            }}
+          </div>
+        </section>
+      `;
+    }}
+
+    function rememberOpenDetails() {{
+      openToolGroups.clear();
+      document.querySelectorAll('details[data-tool-group][open]').forEach(node => openToolGroups.add(node.dataset.toolGroup));
+      localStorage.setItem('axiom-open-tool-groups', JSON.stringify([...openToolGroups]));
+    }}
+
+    function renderEntry(entry, isNew) {{
+      const extraClass = isNew ? ' is-new' : '';
+      if (entry.kind === 'tool_group') {{
+        const openAttr = openToolGroups.has(entry.id) ? ' open' : '';
+        const summary = entry.items.length === 1 ? entry.items[0].summary : (entry.items.length + ' commands');
+        const body = entry.items.map(item => (item.summary + '\\n' + (item.output || item.details || '')).trim()).join('\\n\\n');
+        return `
+          <article class="entry tool${{extraClass}}">
+            <details data-tool-group="${{escapeHtml(entry.id)}}"${{openAttr}}>
+              <summary>${{escapeHtml(summary)}}</summary>
+              <pre>${{escapeHtml(body)}}</pre>
+            </details>
+          </article>
+        `;
+      }}
+      return `
+        <article class="entry ${{entry.role}}${{extraClass}}">
+          <div class="entry-head">
+            <span class="label">${{escapeHtml(entry.role)}}</span>
+            <span class="time">${{escapeHtml(entry.when)}}</span>
+          </div>
+          <div class="md">${{entry.html || ''}}</div>
+        </article>
+      `;
+    }}
+
+    function renderWakeup(wakeup, newCount) {{
+      const entries = wakeup.display_entries.map((entry, index) => renderEntry(entry, index < newCount)).join('');
+      return `
+        <section class="wakeup" id="${{escapeHtml(wakeup.id)}}">
+          <div class="wakeup-head">
+            <div class="wakeup-top">
+              <span>${{escapeHtml(wakeup.start_iso)}}</span>
+              <span>${{escapeHtml(wakeup.kind)}} • ${{escapeHtml(wakeup.thread_id.slice(0, 8))}}</span>
+            </div>
+            <p class="headline">${{escapeHtml(wakeup.headline)}}</p>
+            ${{wakeup.context ? `<div class="sub">${{escapeHtml(wakeup.context)}}</div>` : ''}}
+          </div>
+          <div class="entries">${{entries}}</div>
+        </section>
+      `;
+    }}
+
+    async function refresh() {{
+      const response = await fetch('./{day}.json?ts=' + Date.now(), {{ cache: 'no-store' }});
+      const data = await response.json();
+      statusEl.textContent = 'Updated ' + data.generated_at;
+      const nextSignature = JSON.stringify([data.generated_at, data.wakeups.length, data.wakeups[0]?.end_iso || '']);
+      if (nextSignature === signature) {{
+        return;
+      }}
+      signature = nextSignature;
+      const nextCounts = {{}};
+      feedEl.classList.add('updating');
+      requestAnimationFrame(() => {{
+        timelineWrapEl.innerHTML = renderTimeline(data);
+        todosEl.innerHTML = renderTodos(data);
+        feedEl.innerHTML = data.wakeups.map(wakeup => {{
+          const previous = initialized ? (knownEntryCounts[wakeup.id] || 0) : wakeup.display_entries.length;
+          const newCount = Math.max(wakeup.display_entries.length - previous, 0);
+          nextCounts[wakeup.id] = wakeup.display_entries.length;
+          return renderWakeup(wakeup, newCount);
+        }}).join('');
+        document.querySelectorAll('details[data-tool-group]').forEach(node => node.addEventListener('toggle', rememberOpenDetails));
+        knownEntryCounts = nextCounts;
+        initialized = true;
+        feedEl.classList.remove('updating');
+      }});
+    }}
+
+    refresh();
+    setInterval(refresh, 5000);
+  </script>
+</body>
+</html>
+"""
+
+
+def write_day(day: dict) -> None:
+    payload = {
+        "generated_at": dt.datetime.now().astimezone().strftime("%Y-%m-%d %H:%M:%S %Z"),
+        "date": day["day"],
+        "day": day["day"],
+        "segments": day["segments"],
+        "todos": day["todos"],
+        "wakeups": day["wakeups"],
+    }
+    (OUTPUT_DIR / f"{day['day']}.json").write_text(json.dumps(payload, indent=2, ensure_ascii=False))
+    (OUTPUT_DIR / f"{day['day']}.html").write_text(day_shell(day["day"]))
+
+
+def cleanup(days: list[dict]) -> None:
+    keep = {"index.html", FAVICON_NAME}
+    for day in days:
+        keep.add(f"{day['day']}.html")
+        keep.add(f"{day['day']}.json")
+    for path in OUTPUT_DIR.glob("*"):
+        if path.is_file() and path.name not in keep:
+            path.unlink()
+
+
+def main() -> None:
+    OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+    write_favicon()
+    days = build_days()
+    write_index(days)
+    for day in days:
+        write_day(day)
+    cleanup(days)
+
+
+if __name__ == "__main__":
+    main()

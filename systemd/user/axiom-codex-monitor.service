@@ -1,0 +1,12 @@
+[Unit]
+Description=Publish private HTML monitor for Codex sessions
+
+[Service]
+Type=simple
+WorkingDirectory=%h
+ExecStart=%h/.local/bin/axiom-watch-codex-monitor
+Restart=always
+RestartSec=2
+
+[Install]
+WantedBy=default.target

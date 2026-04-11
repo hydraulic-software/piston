@@ -26,7 +26,7 @@ Since then the shared repo has widened one step and now includes a Linux automat
 - a configurable `axiom-mail-filter`
 - example `systemd --user` units for timer, nightly, and Maildir-triggered wakeups
 
-The remaining boundary is now mostly around the monitor stack, local profile state, and HQ-specific policy, not around Maildir or `systemd` themselves.
+The remaining boundary is now mostly around local profile state and HQ-specific policy, not around Maildir, `systemd`, or the monitor stack themselves.
 
 ## What a future cleanup would likely do
 
