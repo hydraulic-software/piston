@@ -88,6 +88,12 @@ For the Linux automation slice as well:
 scripts/install-local.sh --systemd
 ```
 
+For a safer managed update model that installs a copied release snapshot instead of pointing live entrypoints straight at the repo working tree:
+
+```bash
+scripts/update-local.sh --systemd
+```
+
 See [`docs/install.md`](docs/install.md) for the symlink-vs-copy behavior and current assumptions, [`docs/linux-automation-slice.md`](docs/linux-automation-slice.md) for the Linux user-unit layer, and [`docs/monitor-slice.md`](docs/monitor-slice.md) for the shared monitor layer.
 
 For the matching removal path:

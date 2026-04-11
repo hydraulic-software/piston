@@ -17,6 +17,7 @@ echo "[2/3] Installer shell syntax"
 bash -n "$REPO_ROOT/bin/axiom-codex-runner"
 bash -n "$REPO_ROOT/bin/axiom-watch-codex-monitor"
 bash -n "$REPO_ROOT/scripts/install-local.sh"
+bash -n "$REPO_ROOT/scripts/update-local.sh"
 bash -n "$REPO_ROOT/scripts/uninstall-local.sh"
 
 echo "[3/3] Throwaway install smoke test"
@@ -68,6 +69,27 @@ for unit in axiom-autonomy.service axiom-autonomy.timer axiom-codex-monitor.serv
   target="$tmpdir/home/.config/systemd/user/$unit"
   if [[ -e "$target" || -L "$target" ]]; then
     echo "user unit still present after uninstall: $target" >&2
+    exit 1
+  fi
+done
+
+echo "[4/4] Throwaway managed update smoke test"
+tmpdir2="$(mktemp -d)"
+trap 'rm -rf "$tmpdir" "$tmpdir2"' EXIT
+
+mkdir -p "$tmpdir2/home" "$tmpdir2/home/.config/systemd/user"
+BOT_TOOLS_HOME="$tmpdir2/store" CODEX_HOME="$tmpdir2/codex" HOME="$tmpdir2/home" \
+  "$REPO_ROOT/scripts/update-local.sh" --systemd >/dev/null
+
+if [[ ! -L "$tmpdir2/store/current" ]]; then
+  echo "missing managed current symlink: $tmpdir2/store/current" >&2
+  exit 1
+fi
+
+for helper in axiom-autonomy-scheduler axiom-codex-runner axiom-mail-filter axiom-render-codex-monitor axiom-send-markdown-mail axiom-teamcity-watch axiom-todo axiom-watch-codex-monitor; do
+  target="$tmpdir2/home/.local/bin/$helper"
+  if [[ ! -L "$target" ]]; then
+    echo "managed helper is not a symlink: $target" >&2
     exit 1
   fi
 done

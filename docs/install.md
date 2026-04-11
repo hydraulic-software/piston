@@ -43,6 +43,28 @@ scripts/uninstall-local.sh
 
 That removes the installed helper entry names from `~/.local/bin`, the staged `markdown-email` skill from `${CODEX_HOME:-~/.codex}/skills`, and any matching example user-unit files from `~/.config/systemd/user`.
 
+## Managed updates
+
+If you want repo changes to behave more like software updates, use:
+
+```bash
+scripts/update-local.sh --systemd
+```
+
+That does **not** point your live entrypoints at the repo working tree. Instead it:
+
+- copies the current repo slice into `~/.local/share/bot-tools/releases/<id>`
+- atomically repoints `~/.local/share/bot-tools/current`
+- refreshes the stable links in `~/.local/bin`, `${CODEX_HOME:-~/.codex}/skills`, and optionally `~/.config/systemd/user`
+
+This is the safer path for shell-heavy tooling because the running system sees a stable installed snapshot rather than a repo checkout that might change mid-interpretation.
+
+If you explicitly want running user units restarted after the update:
+
+```bash
+scripts/update-local.sh --systemd --restart-running
+```
+
 ## What it does not install
 
 This repo now includes a Linux automation slice and a reusable monitor slice too, but it still does not install the more HQ-specific overlay pieces from `profiles/hq-axiom/`, such as:
