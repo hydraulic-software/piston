@@ -1,6 +1,6 @@
 # Bot Tools
 
-Local staging repo for a future shared helper/tooling slice that other assistants could plausibly clone.
+Small shared helper/tooling slice for assistants that need lightweight mail, TeamCity, and todo helpers.
 
 This is intentionally a small first slice:
 
@@ -13,11 +13,10 @@ The goal is to prove the extraction boundary before attempting to move more HQ-s
 
 ## Current status
 
-- staged locally only
-- not pushed anywhere
-- helpers are still named after their Axiom origin for now
-- the included helpers have already been parameterized enough to run outside this exact HQ account
-- a minimal local bootstrap path now exists via `scripts/install-local.sh`
+- intentionally small first slice, not a full automation framework
+- helpers still keep their Axiom-origin names for now
+- the included helpers are parameterized enough to run outside this exact HQ account
+- a minimal local bootstrap path exists via `scripts/install-local.sh`
 
 ## Portable knobs already added
 
@@ -46,6 +45,13 @@ The goal is to prove the extraction boundary before attempting to move more HQ-s
   - small install/bootstrap helpers for local use
 
 ## Install
+
+Clone it:
+
+```bash
+git clone git@hq.hydraulic.software:axiom/bot-tools.git
+cd bot-tools
+```
 
 For a simple local bootstrap from this repo:
 
