@@ -10,4 +10,8 @@ Examples that still belong on the HQ side instead of in the shared core:
 - monitor publishing paths
 - account-specific sender defaults
 
-The current staging repo does not copy those files in. This profile note is here to keep the boundary explicit.
+The current shared repo now includes one concrete example profile file here:
+
+- `mail-filter-domains.txt`
+
+That keeps the default shared mail filter permissive unless configured, while still making the HQ allowlist explicit and reusable as profile state rather than script-local code.

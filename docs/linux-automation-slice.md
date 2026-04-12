@@ -38,6 +38,10 @@ Not included yet:
 - `BOT_ALLOWED_FROM_DOMAINS`
   - comma-separated allowlist for `axiom-mail-filter`
   - if unset, the filter delivers all messages instead of dropping mail by surprise
+- `BOT_MAIL_FILTER_DOMAINS_FILE`
+  - optional newline-separated allowlist file for `axiom-mail-filter`
+  - defaults to `~/.config/bot-tools/mail-filter-domains.txt`
+  - comments and blank lines are ignored
 - `BOT_MAILDIR`
   - override the Maildir root used by `axiom-mail-filter`
 - `BOT_MAIL_FILTER_LOG`

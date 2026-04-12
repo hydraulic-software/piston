@@ -12,11 +12,31 @@ MAILDIR = Path(os.environ.get("BOT_MAILDIR", str(HOME / "Maildir")))
 LOG_PATH = Path(
     os.environ.get("BOT_MAIL_FILTER_LOG", str(HOME / ".local/state/axiom/mail-filter.log"))
 )
-ALLOWED_DOMAINS = {
-    domain.strip().lower()
-    for domain in os.environ.get("BOT_ALLOWED_FROM_DOMAINS", "").split(",")
-    if domain.strip()
-}
+DOMAINS_FILE = Path(
+    os.environ.get("BOT_MAIL_FILTER_DOMAINS_FILE", str(HOME / ".config/bot-tools/mail-filter-domains.txt"))
+)
+
+
+def load_allowed_domains() -> set[str]:
+    env_value = os.environ.get("BOT_ALLOWED_FROM_DOMAINS", "")
+    if env_value.strip():
+        return {
+            domain.strip().lower()
+            for domain in env_value.split(",")
+            if domain.strip()
+        }
+    if DOMAINS_FILE.exists():
+        domains: set[str] = set()
+        for line in DOMAINS_FILE.read_text(encoding="utf-8").splitlines():
+            text = line.strip().lower()
+            if not text or text.startswith("#"):
+                continue
+            domains.add(text)
+        return domains
+    return set()
+
+
+ALLOWED_DOMAINS = load_allowed_domains()
 
 
 def sender_allowed(raw_message: bytes) -> tuple[bool, str]:

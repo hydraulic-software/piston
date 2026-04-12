@@ -1,0 +1,4 @@
+# Allowed sender domains for the HQ Axiom account.
+hydraulic.software
+hydraulic.dev
+hq.hydraulic.software
