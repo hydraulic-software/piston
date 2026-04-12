@@ -29,6 +29,12 @@ This repo now includes the reusable monitor layer that was originally developed 
 - `BOT_RUN_LOG_DIR`
   - override the run-log directory used for summary sidecars
 
+The shared runner now writes those sidecars as:
+
+- `~/.local/state/axiom/runs/<timestamp>-<mode>.summary.json`
+
+That gives the monitor a structured `headline` source instead of relying only on rollout heuristics.
+
 The watcher relies on those same defaults and watches the matching paths under `$HOME` unless you override them.
 
 ## Included, but still opinionated

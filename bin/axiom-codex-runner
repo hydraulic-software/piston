@@ -51,6 +51,7 @@ common_args=(
 timestamp="$(date +%Y%m%dT%H%M%S)"
 message_file="${run_log_dir}/${timestamp}-${mode}.last-message.txt"
 transcript_file="${run_log_dir}/${timestamp}-${mode}.transcript.txt"
+summary_file="${run_log_dir}/${timestamp}-${mode}.summary.json"
 schedule_helper="${HOME}/.local/bin/axiom-autonomy-scheduler"
 
 summarize_last_message() {
@@ -63,6 +64,39 @@ summarize_last_message() {
   else
     log "no final message was captured"
   fi
+}
+
+write_structured_summary() {
+  python3 - "${mode}" "${prompt}" "${message_file}" "${transcript_file}" "${summary_file}" <<'PY'
+import json
+import re
+import sys
+from datetime import datetime, timezone
+from pathlib import Path
+
+mode, prompt, message_path, transcript_path, summary_path = sys.argv[1:]
+message_file = Path(message_path)
+transcript_file = Path(transcript_path)
+summary_file = Path(summary_path)
+
+message = message_file.read_text(encoding="utf-8") if message_file.exists() else ""
+flat = " ".join(message.split())
+headline = ""
+if flat:
+    match = re.search(r"(.+?[.!?])(?:\s|$)", flat)
+    headline = (match.group(1) if match else flat)[:160]
+
+payload = {
+    "generated_at": datetime.now(timezone.utc).isoformat(),
+    "mode": mode,
+    "prompt": prompt,
+    "headline": headline,
+    "final_message": message,
+    "message_file": message_file.name,
+    "transcript_file": transcript_file.name,
+}
+summary_file.write_text(json.dumps(payload, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+PY
 }
 
 if [[ "${mode}" == "nightly" ]]; then
@@ -102,5 +136,6 @@ if [[ "${mode}" == "timer" && -x "${schedule_helper}" ]]; then
   log "schedule record: ${record_status}"
 fi
 
+write_structured_summary
 summarize_last_message
 log "run complete"
