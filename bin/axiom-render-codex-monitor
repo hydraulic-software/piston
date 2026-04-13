@@ -101,6 +101,9 @@ def load_todos(day: str) -> list[dict]:
         status = str(item.get("status", "pending")).lower()
         if status not in {"pending", "started", "done"}:
             status = "pending"
+        tier = str(item.get("tier", "now") or "now").lower()
+        if tier not in {"now", "background"}:
+            tier = "now"
         done_day = str(item.get("done_day", "") or "")
         if status == "done" and done_day and done_day < day:
             continue
@@ -109,11 +112,21 @@ def load_todos(day: str) -> list[dict]:
                 "id": item.get("id") or f"todo-{index}",
                 "text": str(item.get("text", "")).strip(),
                 "status": status,
+                "tier": tier,
                 "updated_day": str(item.get("updated_day", "") or ""),
                 "done_day": done_day,
             }
         )
-    return [item for item in items if item["text"]]
+    order = {
+        ("now", "started"): 0,
+        ("now", "pending"): 1,
+        ("background", "started"): 2,
+        ("background", "pending"): 3,
+        ("done", "done"): 4,
+    }
+    items = [item for item in items if item["text"]]
+    items.sort(key=lambda item: (order.get((item["tier"], item["status"]), 9), item["id"]))
+    return items
 
 
 def load_run_summaries() -> list[dict]:
@@ -599,11 +612,14 @@ def day_shell(day: str) -> str:
     .todos-head h2 {{ margin: 0; font-size: 0.95rem; }}
     .todos-head span {{ color: var(--muted); font-size: 0.74rem; }}
     .todo-list {{ display: grid; gap: 6px; }}
-    .todo {{ display: grid; grid-template-columns: auto 1fr auto; gap: 8px; align-items: start; border: 1px solid rgba(27,36,40,0.07); border-radius: 10px; padding: 7px 9px; background: rgba(255,255,255,0.7); }}
+    .todo {{ display: grid; grid-template-columns: auto auto 1fr auto; gap: 8px; align-items: start; border: 1px solid rgba(27,36,40,0.07); border-radius: 10px; padding: 7px 9px; background: rgba(255,255,255,0.7); }}
     .todo-status {{ font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.05em; padding: 2px 6px; border-radius: 999px; color: #fff; }}
     .todo.pending .todo-status {{ background: #b76b00; }}
     .todo.started .todo-status {{ background: #007c9d; }}
     .todo.done .todo-status {{ background: #2f8b57; }}
+    .todo-tier {{ font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.05em; padding: 2px 6px; border-radius: 999px; background: rgba(27,36,40,0.08); color: var(--muted); }}
+    .todo.now .todo-tier {{ display: none; }}
+    .todo.background .todo-tier {{ background: #efe8d7; color: #7a5a11; }}
     .todo-text {{ font-size: 0.9rem; line-height: 1.25; }}
     .todo-meta {{ color: var(--muted); font-size: 0.72rem; white-space: nowrap; }}
     .todo-empty {{ color: var(--muted); font-size: 0.85rem; }}
@@ -707,6 +723,7 @@ def day_shell(day: str) -> str:
               todos.map(todo => `
                 <article class="todo ${{todo.status}}">
                   <span class="todo-status">${{escapeHtml(todo.status)}}</span>
+                  <span class="todo-tier">${{escapeHtml(todo.tier)}}</span>
                   <div class="todo-text">${{escapeHtml(todo.text)}}</div>
                   <div class="todo-meta">${{escapeHtml(todo.done_day || todo.updated_day || '')}}</div>
                 </article>

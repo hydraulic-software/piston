@@ -13,6 +13,7 @@ from pathlib import Path
 
 TODO_FILE = Path(os.environ.get("BOT_TODO_FILE", str(Path.home() / ".local/state/axiom/todo.json")))
 VALID_STATUSES = {"pending", "started", "done"}
+VALID_TIERS = {"now", "background"}
 
 
 def today() -> str:
@@ -49,6 +50,10 @@ def load_data() -> dict:
         normalized_item["id"] = str(item["id"]).strip()
         normalized_item["text"] = str(item["text"]).strip()
         normalized_item["status"] = status
+        tier = str(item.get("tier", "now") or "now").strip().lower()
+        if tier not in VALID_TIERS:
+            raise SystemExit(f"invalid todo tier for {item.get('id')!r}: {tier}")
+        normalized_item["tier"] = tier
         normalized_item["updated_day"] = str(item.get("updated_day", "") or "").strip()
         done_day = str(item.get("done_day", "") or "").strip()
         if done_day:
@@ -106,6 +111,8 @@ def cmd_list(args: argparse.Namespace) -> int:
     for item in items:
         status = item["status"]
         meta = [status]
+        if item.get("tier") and item["tier"] != "now":
+            meta.append(f"tier={item['tier']}")
         if item.get("updated_day"):
             meta.append(f"updated={item['updated_day']}")
         if item.get("done_day"):
@@ -124,6 +131,7 @@ def cmd_add(args: argparse.Namespace) -> int:
             "id": item_id,
             "text": args.text.strip(),
             "status": "pending",
+            "tier": args.tier,
             "updated_day": today(),
         }
     )
@@ -141,6 +149,16 @@ def cmd_set_status(args: argparse.Namespace, status: str) -> int:
     return 0
 
 
+def cmd_set_tier(args: argparse.Namespace, tier: str) -> int:
+    data = load_data()
+    item = find_item(data, args.id)
+    item["tier"] = tier
+    item["updated_day"] = today()
+    save_data(data)
+    print(f"{item['id']}\t{item['tier']}")
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="axiom-todo", description=f"Edit {TODO_FILE}")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -152,6 +170,12 @@ def build_parser() -> argparse.ArgumentParser:
     p_add = sub.add_parser("add", help="Add a pending todo item")
     p_add.add_argument("text", help="Todo text")
     p_add.add_argument("--id", help="Explicit item id (defaults to a slug from text)")
+    p_add.add_argument(
+        "--tier",
+        choices=sorted(VALID_TIERS),
+        default="now",
+        help="Priority tier for the new item (default: now)",
+    )
     p_add.set_defaults(func=cmd_add)
 
     p_start = sub.add_parser("start", help="Mark a todo item as started")
@@ -165,6 +189,14 @@ def build_parser() -> argparse.ArgumentParser:
     p_done = sub.add_parser("done", help="Mark a todo item as done")
     p_done.add_argument("id", help="Item id")
     p_done.set_defaults(func=lambda args: cmd_set_status(args, "done"))
+
+    p_now = sub.add_parser("now", help="Mark a todo item as a now-tier item")
+    p_now.add_argument("id", help="Item id")
+    p_now.set_defaults(func=lambda args: cmd_set_tier(args, "now"))
+
+    p_background = sub.add_parser("background", help="Mark a todo item as a background-tier item")
+    p_background.add_argument("id", help="Item id")
+    p_background.set_defaults(func=lambda args: cmd_set_tier(args, "background"))
 
     return parser
 
