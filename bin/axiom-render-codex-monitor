@@ -122,7 +122,8 @@ def load_todos(day: str) -> list[dict]:
         ("now", "pending"): 1,
         ("background", "started"): 2,
         ("background", "pending"): 3,
-        ("done", "done"): 4,
+        ("now", "done"): 4,
+        ("background", "done"): 5,
     }
     items = [item for item in items if item["text"]]
     items.sort(key=lambda item: (order.get((item["tier"], item["status"]), 9), item["id"]))
@@ -721,7 +722,7 @@ def day_shell(day: str) -> str:
           <div class="todo-list">
             ${{
               todos.map(todo => `
-                <article class="todo ${{todo.status}}">
+                <article class="todo ${{todo.status}} ${{todo.tier}}">
                   <span class="todo-status">${{escapeHtml(todo.status)}}</span>
                   <span class="todo-tier">${{escapeHtml(todo.tier)}}</span>
                   <div class="todo-text">${{escapeHtml(todo.text)}}</div>
