@@ -9,10 +9,10 @@ fi
 
 case "${mode}" in
   mail)
-    prompt="The time is $(date). You've got mail! Find it in your ~/Maildir"
+    prompt="The time is $(date). You've got mail! Find it in your ~/Maildir, handle the message end-to-end if practical, and if it points at a ticket or issue treat updating that upstream thread/ticket as part of done, not optional follow-up."
     ;;
   timer)
-    prompt="The time is $(date). Autonomous check-in: wake up, review the current state, and see if there is anything useful to do."
+    prompt="The time is $(date). Autonomous check-in: wake up, review the current state, and see if there is anything useful to do. Prefer finishing a chosen issue in one wakeup when practical instead of spreading it across multiple wakeups, and when issue work reaches a conclusion treat updating the relevant ticket/thread as part of completion before clearing the todo."
     ;;
   nightly)
     prompt="The time is $(date). Nightly maintenance wakeup: consolidate notes and memory, organize the home directory and thematic wiki, review the rolling todo list, and see if any safe cleanup or follow-up work should be prepared for tomorrow."
