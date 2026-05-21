@@ -47,6 +47,11 @@ common_args=(
   --dangerously-bypass-approvals-and-sandbox
   --skip-git-repo-check
 )
+codex_model="${BOT_CODEX_MODEL:-gpt-5.4}"
+common_args+=(
+  --model "${codex_model}"
+)
+log "using model ${codex_model}"
 
 timestamp="$(date +%Y%m%dT%H%M%S)"
 message_file="${run_log_dir}/${timestamp}-${mode}.last-message.txt"
@@ -67,24 +72,31 @@ summarize_last_message() {
 }
 
 write_structured_summary() {
-  python3 - "${mode}" "${prompt}" "${message_file}" "${transcript_file}" "${summary_file}" <<'PY'
+  python3 - "${mode}" "${prompt}" "${message_file}" "${transcript_file}" "${summary_file}" "${1:-0}" <<'PY'
 import json
 import re
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
-mode, prompt, message_path, transcript_path, summary_path = sys.argv[1:]
+mode, prompt, message_path, transcript_path, summary_path, exit_code = sys.argv[1:]
 message_file = Path(message_path)
 transcript_file = Path(transcript_path)
 summary_file = Path(summary_path)
 
 message = message_file.read_text(encoding="utf-8") if message_file.exists() else ""
+transcript = transcript_file.read_text(encoding="utf-8", errors="replace") if transcript_file.exists() else ""
 flat = " ".join(message.split())
 headline = ""
 if flat:
     match = re.search(r"(.+?[.!?])(?:\s|$)", flat)
     headline = (match.group(1) if match else flat)[:160]
+run_error = ""
+if not headline and transcript:
+    error_match = re.search(r'ERROR:\s*(.+)', transcript)
+    if error_match:
+        run_error = error_match.group(1).strip()
+        headline = f"Run failed: {run_error}"[:160]
 
 payload = {
     "generated_at": datetime.now(timezone.utc).isoformat(),
@@ -94,6 +106,8 @@ payload = {
     "final_message": message,
     "message_file": message_file.name,
     "transcript_file": transcript_file.name,
+    "run_error": run_error,
+    "exit_code": int(exit_code),
 }
 summary_file.write_text(json.dumps(payload, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
 PY
@@ -124,11 +138,17 @@ if [[ "${mode}" == "timer" && -x "${schedule_helper}" ]]; then
   fi
 fi
 
+run_status=0
 if codex exec resume --last "${common_args[@]}" -o "${message_file}" "${prompt}" >"${transcript_file}" 2>&1; then
   log "resumed latest Codex session"
 else
   log "resume failed, starting fresh non-interactive run"
-  codex exec "${common_args[@]}" -o "${message_file}" "${prompt}" >"${transcript_file}" 2>&1
+  if codex exec "${common_args[@]}" -o "${message_file}" "${prompt}" >"${transcript_file}" 2>&1; then
+    log "fresh non-interactive run completed"
+  else
+    run_status=$?
+    log "fresh non-interactive run failed with exit ${run_status}"
+  fi
 fi
 
 if [[ "${mode}" == "timer" && -x "${schedule_helper}" ]]; then
@@ -136,6 +156,7 @@ if [[ "${mode}" == "timer" && -x "${schedule_helper}" ]]; then
   log "schedule record: ${record_status}"
 fi
 
-write_structured_summary
+write_structured_summary "${run_status}"
 summarize_last_message
-log "run complete"
+log "run complete (status ${run_status})"
+exit "${run_status}"

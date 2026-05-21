@@ -1,0 +1,111 @@
+#!/usr/bin/env python3
+import argparse
+import json
+import os
+import re
+import sys
+from datetime import datetime, timezone
+from pathlib import Path
+
+
+HOME = Path.home()
+RUN_LOG_DIR = Path(os.environ.get("BOT_RUN_LOG_DIR", str(HOME / ".local" / "state" / "axiom" / "runs")))
+
+ROLE_LINE = re.compile(r"^(user|codex|exec|commentary|analysis|final)$", re.MULTILINE)
+TRANSCRIPT_RE = re.compile(r"^(?P<stamp>\d{8}T\d{6})-(?P<mode>[a-z]+)\.transcript\.txt$")
+ERROR_LINE = re.compile(r"^ERROR:\s*", re.MULTILINE)
+
+
+def extract_prompt(transcript: str) -> str:
+    match = re.search(r"^user\n", transcript, re.MULTILINE)
+    if not match:
+        return ""
+    start = match.end()
+    next_role = ROLE_LINE.search(transcript, start)
+    next_error = ERROR_LINE.search(transcript, start)
+    candidates = [len(transcript)]
+    if next_role:
+        candidates.append(next_role.start())
+    if next_error:
+        candidates.append(next_error.start())
+    end = min(candidates)
+    return transcript[start:end].strip()
+
+
+def headline_from_message(message: str) -> str:
+    flat = " ".join(message.split())
+    if not flat:
+        return ""
+    match = re.search(r"(.+?[.!?])(?:\s|$)", flat)
+    return (match.group(1) if match else flat)[:160]
+
+
+def headline_from_error(transcript: str) -> tuple[str, str]:
+    match = re.search(r"ERROR:\s*(.+)", transcript)
+    if not match:
+        return "", ""
+    error = match.group(1).strip()
+    return f"Run failed: {error}"[:160], error
+
+
+def backfill_file(transcript_path: Path, refresh_backfilled: bool) -> bool:
+    match = TRANSCRIPT_RE.match(transcript_path.name)
+    if not match:
+        return False
+
+    summary_path = transcript_path.with_name(transcript_path.name.replace(".transcript.txt", ".summary.json"))
+    if summary_path.exists():
+        if not refresh_backfilled:
+            return False
+        try:
+            existing = json.loads(summary_path.read_text(encoding="utf-8"))
+        except Exception:
+            existing = {}
+        if not existing.get("backfilled"):
+            return False
+
+    mode = match.group("mode")
+    message_path = transcript_path.with_name(transcript_path.name.replace(".transcript.txt", ".last-message.txt"))
+    message = message_path.read_text(encoding="utf-8") if message_path.exists() else ""
+    transcript = transcript_path.read_text(encoding="utf-8", errors="replace")
+    prompt = extract_prompt(transcript)
+    headline = headline_from_message(message)
+    run_error = ""
+    if not headline:
+        headline, run_error = headline_from_error(transcript)
+
+    payload = {
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "mode": mode,
+        "prompt": prompt,
+        "headline": headline,
+        "final_message": message,
+        "message_file": message_path.name,
+        "transcript_file": transcript_path.name,
+        "run_error": run_error,
+        "exit_code": 1 if run_error else 0,
+        "backfilled": True,
+    }
+    summary_path.write_text(json.dumps(payload, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    return True
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description="Backfill missing Codex summary sidecars from transcripts.")
+    parser.add_argument(
+        "--refresh-backfilled",
+        action="store_true",
+        help="rewrite existing backfilled summary files using the current extraction logic",
+    )
+    args = parser.parse_args()
+
+    count = 0
+    for transcript_path in sorted(RUN_LOG_DIR.glob("*.transcript.txt")):
+        if backfill_file(transcript_path, refresh_backfilled=args.refresh_backfilled):
+            count += 1
+    print(count)
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
