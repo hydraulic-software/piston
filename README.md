@@ -8,6 +8,7 @@ This is intentionally a small first slice:
 - `bin/axiom-codex-runner`
 - `bin/axiom-mail-filter`
 - `bin/axiom-render-codex-monitor`
+- `bin/axiom-review-followup`
 - `bin/axiom-watch-codex-monitor`
 - `bin/axiom-send-markdown-mail`
 - `bin/axiom-teamcity-watch`
@@ -34,6 +35,10 @@ The goal is to prove the extraction boundary before attempting to move more HQ-s
 - `axiom-teamcity-watch`
   - `--base-url`
   - `TEAMCITY_BASE_URL`
+- `axiom-review-followup`
+  - review worktree discovery via local `git worktree` state
+  - TeamCity follow-up scoring via `axiom-teamcity-watch`
+  - retention-aware handling for older long-lived review branches whose CI history has aged out
 - `axiom-todo`
   - `BOT_TODO_FILE`
   - `list --active`
