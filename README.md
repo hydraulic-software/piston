@@ -13,6 +13,7 @@ This is intentionally a small first slice:
 - `bin/axiom-send-markdown-mail`
 - `bin/axiom-teamcity-watch`
 - `bin/axiom-todo`
+- `bin/axiom-update-codex`
 - `systemd/user/*.service|*.timer|*.path`
 - `skills/markdown-email/SKILL.md`
 
@@ -45,6 +46,8 @@ The goal is to prove the extraction boundary before attempting to move more HQ-s
 - `axiom-autonomy-scheduler`
   - `BOT_TODO_FILE`
   - `BOT_AUTONOMY_STATE_FILE`
+- `axiom-update-codex`
+  - `BOT_CODEX_INSTALL_DIR`
 - `axiom-mail-filter`
   - `BOT_ALLOWED_FROM_DOMAINS`
   - `BOT_MAILDIR`
@@ -100,6 +103,8 @@ scripts/update-local.sh --systemd
 ```
 
 See [`docs/install.md`](docs/install.md) for the symlink-vs-copy behavior and current assumptions, [`docs/linux-automation-slice.md`](docs/linux-automation-slice.md) for the Linux user-unit layer, and [`docs/monitor-slice.md`](docs/monitor-slice.md) for the shared monitor layer.
+
+See [`docs/codex-upgrades.md`](docs/codex-upgrades.md) for the version-pinned, staged Codex CLI upgrade procedure.
 
 For the matching removal path:
 

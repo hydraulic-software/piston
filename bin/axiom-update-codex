@@ -1,0 +1,72 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+usage() {
+  cat <<'EOF'
+Usage: axiom-update-codex VERSION
+
+Install an exact Codex CLI version into ${BOT_CODEX_INSTALL_DIR:-~/codex}.
+The release is staged and verified before replacing the live tree. The prior
+tree is retained as a timestamped sibling backup.
+EOF
+}
+
+if [[ $# -ne 1 || "$1" == "-h" || "$1" == "--help" ]]; then
+  usage
+  [[ $# -eq 1 ]] && exit 0
+  exit 2
+fi
+
+version="$1"
+if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?$ ]]; then
+  echo "Expected an exact Codex version, got: $version" >&2
+  exit 2
+fi
+
+install_dir="${BOT_CODEX_INSTALL_DIR:-${HOME}/codex}"
+parent_dir="$(dirname "$install_dir")"
+base_name="$(basename "$install_dir")"
+mkdir -p "$parent_dir"
+
+stage_dir="$(mktemp -d "${parent_dir}/.${base_name}.upgrade.XXXXXX")"
+backup_dir=""
+complete=0
+
+cleanup() {
+  rm -rf "$stage_dir"
+  if [[ "$complete" != "1" && -n "$backup_dir" && -d "$backup_dir" ]]; then
+    rm -rf "$install_dir"
+    mv "$backup_dir" "$install_dir"
+  fi
+}
+trap cleanup EXIT
+
+printf '{"private":true}\n' >"${stage_dir}/package.json"
+npm --prefix "$stage_dir" install --save-exact "@openai/codex@${version}"
+
+staged_binary="${stage_dir}/node_modules/@openai/codex/bin/codex.js"
+staged_version="$(node "$staged_binary" --version)"
+if [[ "$staged_version" != "codex-cli ${version}" ]]; then
+  echo "Staged Codex version mismatch: $staged_version" >&2
+  exit 1
+fi
+
+if [[ -e "$install_dir" || -L "$install_dir" ]]; then
+  backup_dir="${install_dir}.backup-$(date +%Y%m%d%H%M%S)"
+  mv "$install_dir" "$backup_dir"
+fi
+mv "$stage_dir" "$install_dir"
+stage_dir=""
+
+installed_binary="${install_dir}/node_modules/@openai/codex/bin/codex.js"
+installed_version="$(node "$installed_binary" --version)"
+if [[ "$installed_version" != "codex-cli ${version}" ]]; then
+  echo "Installed Codex version mismatch: $installed_version" >&2
+  exit 1
+fi
+
+complete=1
+echo "Installed ${installed_version} in ${install_dir}"
+if [[ -n "$backup_dir" ]]; then
+  echo "Previous installation retained at ${backup_dir}"
+fi
