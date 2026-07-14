@@ -47,7 +47,7 @@ common_args=(
   --dangerously-bypass-approvals-and-sandbox
   --skip-git-repo-check
 )
-codex_model="${BOT_CODEX_MODEL:-gpt-5.4}"
+codex_model="${BOT_CODEX_MODEL:-gpt-5.6-sol}"
 common_args+=(
   --model "${codex_model}"
 )
