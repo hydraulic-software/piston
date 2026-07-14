@@ -208,12 +208,14 @@ def write_favicon() -> None:
 
 
 def tool_summary(name: str, body: str) -> str:
+    commands = tool_commands(name, body)
+    if commands:
+        suffix = f" (+{len(commands) - 1} more)" if len(commands) > 1 else ""
+        return commands[0] + suffix
     try:
         parsed = json.loads(body)
     except Exception:
         return name
-    if name == "exec_command":
-        return parsed.get("cmd", name)
     if name == "parallel":
         return f"parallel ({len(parsed.get('tool_uses', []))} calls)"
     if name == "update_plan":
@@ -221,6 +223,27 @@ def tool_summary(name: str, body: str) -> str:
     if name == "apply_patch":
         return "apply patch"
     return name
+
+
+def tool_commands(name: str, body: str) -> list[str]:
+    if name == "exec_command":
+        try:
+            command = json.loads(body).get("cmd")
+            return [command] if isinstance(command, str) else []
+        except Exception:
+            return []
+    if name != "exec":
+        return []
+
+    # Newer Codex versions wrap tool calls in JavaScript. Extract literal shell commands so the monitor shows the
+    # useful operation instead of only the generic orchestration tool name.
+    commands = []
+    for match in re.finditer(r"\bcmd\s*:\s*(\"(?:\\.|[^\"\\])*\")", body):
+        try:
+            commands.append(json.loads(match.group(1)))
+        except json.JSONDecodeError:
+            continue
+    return commands
 
 
 def pretty_json_string(value: str) -> str:
@@ -231,12 +254,13 @@ def pretty_json_string(value: str) -> str:
 
 
 def tool_detail(name: str, body: str) -> str:
+    commands = tool_commands(name, body)
+    if commands:
+        return "\n\n".join(commands)
     try:
         parsed = json.loads(body)
     except Exception:
         return body
-    if name == "exec_command":
-        return parsed.get("cmd", "")
     return pretty_json_string(body)
 
 
@@ -763,7 +787,12 @@ def day_shell(day: str) -> str:
       if (entry.kind === 'tool_group') {{
         const openAttr = openToolGroups.has(entry.id) ? ' open' : '';
         const summary = entry.items.length === 1 ? entry.items[0].summary : (entry.items.length + ' commands');
-        const body = entry.items.map(item => (item.summary + '\\n' + (item.output || item.details || '')).trim()).join('\\n\\n');
+        const body = entry.items.map(item => {{
+          const sections = [item.summary];
+          if (item.details && item.details !== item.summary) sections.push('Command:\\n' + item.details);
+          if (item.output) sections.push(item.output);
+          return sections.join('\\n\\n').trim();
+        }}).join('\\n\\n');
         return `
           <article class="entry tool${{extraClass}}">
             <details data-tool-group="${{escapeHtml(entry.id)}}"${{openAttr}}>
