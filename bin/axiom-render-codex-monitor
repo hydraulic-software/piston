@@ -85,6 +85,23 @@ def first_sentence(text: str, max_len: int = 160) -> str:
     return summarize_text(flat, max_len)
 
 
+def content_text(value: object) -> str:
+    """Flatten Codex's legacy strings and newer typed content blocks for display."""
+    if value is None:
+        return ""
+    if isinstance(value, str):
+        return value
+    if isinstance(value, list):
+        return "".join(content_text(item) for item in value)
+    if isinstance(value, dict):
+        for key in ("text", "output_text", "input_text"):
+            text = value.get(key)
+            if isinstance(text, str):
+                return text
+        return json.dumps(value, indent=2, ensure_ascii=False)
+    return str(value)
+
+
 def load_todos(day: str) -> list[dict]:
     if not TODO_FILE.exists():
         return []
@@ -233,14 +250,12 @@ def wakeup_kind(prompt: str) -> str:
 
 
 def clean_prompt(prompt: str) -> str:
+    lowered = prompt.lower()
+    if "you've got mail!" in lowered or "received new mail" in lowered:
+        return "Mail check"
+
     text = " ".join(prompt.split())
     text = re.sub(r"^The time is .*?\.\s*", "", text, count=1)
-    text = text.replace("You've got mail! Find it in your ~/Maildir", "").strip()
-
-    if not text and "mail" in prompt.lower():
-        return "Mail check"
-    if text == "You have received new mail in your ~/Maildir":
-        return "Mail check"
     if text.startswith("Autonomous check-in:"):
         return "Autonomous check-in"
     if text.startswith("Nightly maintenance wakeup:"):
@@ -381,6 +396,7 @@ def parse_rollout(thread: dict) -> list[dict]:
                 append_entry(at, entry)
                 pending_tools[payload.get("call_id", "")] = entry
             elif kind in {"function_call_output", "custom_tool_call_output"}:
+                output = content_text(payload.get("output", ""))
                 entry = pending_tools.get(payload.get("call_id", ""))
                 if entry is None:
                     entry = {
@@ -391,11 +407,11 @@ def parse_rollout(thread: dict) -> list[dict]:
                         "title": "tool",
                         "summary": "tool activity",
                         "details": "",
-                        "output": payload.get("output", ""),
+                        "output": output,
                     }
                     append_entry(at, entry)
                 else:
-                    entry["output"] = payload.get("output", "")
+                    entry["output"] = output
                     entry["ts"] = at.timestamp()
                     entry["when"] = when
                     entry["summary"] = summarize_text(entry["summary"], 72)
@@ -450,7 +466,8 @@ def parse_rollout(thread: dict) -> list[dict]:
             headline_source = next((entry.get("plain") for entry in wakeup["entries"] if entry.get("plain")), None)
         wakeup["headline"] = first_sentence(strip_html(headline_source or wakeup["label"] or wakeup["prompt"]))
         meta_bits = []
-        if wakeup["label"] and wakeup["label"] != wakeup["headline"]:
+        generic_labels = {"Mail check", "Autonomous check-in", "Nightly maintenance"}
+        if wakeup["label"] not in generic_labels and wakeup["label"] != wakeup["headline"]:
             meta_bits.append(wakeup["label"])
         if wakeup["cwd"] != "~":
             meta_bits.append(wakeup["cwd"])

@@ -4,7 +4,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
-echo "[1/3] Python syntax checks"
+echo "[1/5] Python syntax checks"
 python3 -m py_compile \
   "$REPO_ROOT/bin/axiom-autonomy-scheduler" \
   "$REPO_ROOT/bin/axiom-backfill-codex-summaries" \
@@ -15,14 +15,17 @@ python3 -m py_compile \
   "$REPO_ROOT/bin/axiom-teamcity-watch" \
   "$REPO_ROOT/bin/axiom-todo"
 
-echo "[2/3] Installer shell syntax"
+echo "[2/5] Python tests"
+python3 -m unittest discover -s "$REPO_ROOT/tests"
+
+echo "[3/5] Installer shell syntax"
 bash -n "$REPO_ROOT/bin/axiom-codex-runner"
 bash -n "$REPO_ROOT/bin/axiom-watch-codex-monitor"
 bash -n "$REPO_ROOT/scripts/install-local.sh"
 bash -n "$REPO_ROOT/scripts/update-local.sh"
 bash -n "$REPO_ROOT/scripts/uninstall-local.sh"
 
-echo "[3/3] Throwaway install smoke test"
+echo "[4/5] Throwaway install smoke test"
 tmpdir="$(mktemp -d)"
 trap 'rm -rf "$tmpdir"' EXIT
 
@@ -75,7 +78,7 @@ for unit in axiom-autonomy.service axiom-autonomy.timer axiom-codex-monitor.serv
   fi
 done
 
-echo "[4/4] Throwaway managed update smoke test"
+echo "[5/5] Throwaway managed update smoke test"
 tmpdir2="$(mktemp -d)"
 trap 'rm -rf "$tmpdir" "$tmpdir2"' EXIT
 
