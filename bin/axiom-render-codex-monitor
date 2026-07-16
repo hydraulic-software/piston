@@ -292,10 +292,11 @@ def clean_prompt(prompt: str) -> str:
 def recent_rollout_lines(path: Path, since: dt.datetime) -> tuple[list[str], int]:
     """Read only the active-day suffix, anchored at its preceding user turn."""
     since_utc = since.astimezone(dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%S")
-    preceding_user_line: bytes | None = None
-    preceding_user_number = 0
+    current_turn: list[bytes] = []
+    selected_offset = 0
     user_count = 0
     started = False
+    selected_has_crossing_turn = False
     selected: list[str] = []
 
     with path.open("rb") as stream:
@@ -304,19 +305,30 @@ def recent_rollout_lines(path: Path, since: dt.datetime) -> tuple[list[str], int
             match = TIMESTAMP_RE.search(raw)
             timestamp = match.group(1).decode() if match else ""
 
+            if is_user_line:
+                user_count += 1
+                current_turn = [raw]
+            elif current_turn:
+                current_turn.append(raw)
+
             if not started and timestamp[:19] >= since_utc:
                 started = True
-                if preceding_user_line is not None and preceding_user_line != raw:
-                    selected.append(preceding_user_line.decode())
-
-            if started:
+                selected = [line.decode() for line in current_turn]
+                selected_offset = max(user_count - 1, 0)
+                if current_turn:
+                    first_match = TIMESTAMP_RE.search(current_turn[0])
+                    first_timestamp = first_match.group(1).decode() if first_match else ""
+                    selected_has_crossing_turn = first_timestamp[:19] < since_utc
+            elif started and is_user_line and selected_has_crossing_turn:
+                # Once today's first user turn starts, yesterday's crossing
+                # turn is complete and no longer belongs in the fast refresh.
+                selected = [raw.decode()]
+                selected_offset = user_count - 1
+                selected_has_crossing_turn = False
+            elif started:
                 selected.append(raw.decode())
-            elif is_user_line:
-                user_count += 1
-                preceding_user_line = raw
-                preceding_user_number = user_count
 
-    return selected, max(preceding_user_number - 1, 0)
+    return selected, selected_offset
 
 
 def parse_rollout(thread: dict, since: dt.datetime | None = None) -> list[dict]:
@@ -932,9 +944,19 @@ def main() -> None:
     if "--recent" in sys.argv[1:]:
         local_now = dt.datetime.now().astimezone()
         local_midnight = local_now.replace(hour=0, minute=0, second=0, microsecond=0)
-        for day in build_days(local_midnight):
-            # The preceding user turn can belong to yesterday. Do not replace
-            # that complete historical page with a deliberately truncated view.
+        recent_days = build_days(local_midnight)
+        current_days = [day for day in recent_days if day["day"] == local_midnight.strftime("%Y-%m-%d")]
+        if not current_days and recent_days:
+            # A wakeup can cross midnight. Refresh everything until the first
+            # new-day user turn starts so yesterday's final entries are kept.
+            write_favicon()
+            days = build_days()
+            write_index(days)
+            for day in days:
+                write_day(day)
+            cleanup(days)
+            return
+        for day in current_days:
             if day["day"] == local_midnight.strftime("%Y-%m-%d"):
                 write_day(day)
         return

@@ -28,8 +28,25 @@ class RenderCodexMonitorTest(unittest.TestCase):
             raw_lines, wakeup_index_offset = MODULE.recent_rollout_lines(path, since)
             lines = [json.loads(line) for line in raw_lines]
 
-        self.assertEqual([old_user, current_output], lines)
+        self.assertEqual([old_user, old_output, current_output], lines)
         self.assertEqual(0, wakeup_index_offset)
+
+    def test_recent_rollout_discards_crossing_turn_after_new_user(self):
+        old_user = {"timestamp": "2026-07-15T21:00:00Z", "payload": {"type": "user_message"}}
+        crossing_output = {"timestamp": "2026-07-15T22:01:00Z", "payload": {"type": "agent_message"}}
+        current_user = {"timestamp": "2026-07-15T22:02:00Z", "payload": {"type": "user_message"}}
+        current_output = {"timestamp": "2026-07-15T22:03:00Z", "payload": {"type": "agent_message"}}
+
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "rollout.jsonl"
+            path.write_text("\n".join(map(json.dumps, (old_user, crossing_output, current_user, current_output))) + "\n")
+            since = dt.datetime(2026, 7, 15, 22, 0, tzinfo=dt.timezone.utc)
+
+            raw_lines, wakeup_index_offset = MODULE.recent_rollout_lines(path, since)
+            lines = [json.loads(line) for line in raw_lines]
+
+        self.assertEqual([current_user, current_output], lines)
+        self.assertEqual(1, wakeup_index_offset)
 
     def test_typed_tool_output_is_flattened(self):
         output = [
