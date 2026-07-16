@@ -10,14 +10,30 @@ render() {
 }
 
 render
+last_render_at=$(date +%s)
+min_interval=${BOT_MONITOR_MIN_INTERVAL_SECONDS:-30}
+
+if ! [[ "$min_interval" =~ ^[1-9][0-9]*$ ]]; then
+  echo "BOT_MONITOR_MIN_INTERVAL_SECONDS must be a positive integer" >&2
+  exit 2
+fi
 
 while read -r _; do
-  # Codex updates the SQLite/WAL files in bursts; drain nearby events so the
-  # monitor does one render per burst instead of one render per write.
-  while read -r -t 1 _; do
-    :
+  # A render currently scans the active rollout and rewrites the monitor's
+  # daily JSON. Codex updates its rollout and SQLite files every few seconds,
+  # so a short debounce alone can keep one CPU core busy continuously. Drain
+  # events until the minimum interval expires instead, bounding the work while
+  # still publishing a final render after activity stops.
+  while true; do
+    now=$(date +%s)
+    remaining=$((min_interval - (now - last_render_at)))
+    if ((remaining <= 0)); then
+      break
+    fi
+    read -r -t "$remaining" _ || break
   done
   render
+  last_render_at=$(date +%s)
 done < <(
   inotifywait -m -r \
     -e close_write,create,move,delete \

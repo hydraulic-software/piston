@@ -28,6 +28,8 @@ This repo now includes the reusable monitor layer that was originally developed 
   - override the todo board path
 - `BOT_RUN_LOG_DIR`
   - override the run-log directory used for summary sidecars
+- `BOT_MONITOR_MIN_INTERVAL_SECONDS`
+  - minimum seconds between renders while files are changing; defaults to `30`
 
 The shared runner now writes those sidecars as:
 
@@ -47,6 +49,10 @@ The shared slice keeps the existing Axiom-oriented UI structure for now:
 - grouped tool output
 
 That is useful enough to share as-is, even though it is not yet a polished generic theming/configuration layer.
+
+The watcher drains filesystem events until this interval expires. This bounds
+CPU use during active Codex sessions while still publishing a final render
+after activity stops.
 
 ## Not included yet
 
