@@ -9,9 +9,21 @@ render() {
   "${HOME}/.local/bin/axiom-render-codex-monitor"
 }
 
+render_recent() {
+  local today
+  today=$(date +%F)
+  if [[ "$today" != "$last_full_render_day" ]]; then
+    render
+    last_full_render_day=$today
+  else
+    "${HOME}/.local/bin/axiom-render-codex-monitor" --recent
+  fi
+}
+
 render
+last_full_render_day=$(date +%F)
 last_render_at=$(date +%s)
-min_interval=${BOT_MONITOR_MIN_INTERVAL_SECONDS:-30}
+min_interval=${BOT_MONITOR_MIN_INTERVAL_SECONDS:-1}
 
 if ! [[ "$min_interval" =~ ^[1-9][0-9]*$ ]]; then
   echo "BOT_MONITOR_MIN_INTERVAL_SECONDS must be a positive integer" >&2
@@ -19,11 +31,8 @@ if ! [[ "$min_interval" =~ ^[1-9][0-9]*$ ]]; then
 fi
 
 while read -r _; do
-  # A render currently scans the active rollout and rewrites the monitor's
-  # daily JSON. Codex updates its rollout and SQLite files every few seconds,
-  # so a short debounce alone can keep one CPU core busy continuously. Drain
-  # events until the minimum interval expires instead, bounding the work while
-  # still publishing a final render after activity stops.
+  # Coalesce write bursts before refreshing the active day. Historical days
+  # are rebuilt only at startup and local-day rollover.
   while true; do
     now=$(date +%s)
     remaining=$((min_interval - (now - last_render_at)))
@@ -32,7 +41,7 @@ while read -r _; do
     fi
     read -r -t "$remaining" _ || break
   done
-  render
+  render_recent
   last_render_at=$(date +%s)
 done < <(
   inotifywait -m -r \

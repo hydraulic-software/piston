@@ -29,7 +29,7 @@ This repo now includes the reusable monitor layer that was originally developed 
 - `BOT_RUN_LOG_DIR`
   - override the run-log directory used for summary sidecars
 - `BOT_MONITOR_MIN_INTERVAL_SECONDS`
-  - minimum seconds between renders while files are changing; defaults to `30`
+  - minimum seconds between recent-day renders while files are changing; defaults to `1`
 
 The shared runner now writes those sidecars as:
 
@@ -50,9 +50,10 @@ The shared slice keeps the existing Axiom-oriented UI structure for now:
 
 That is useful enough to share as-is, even though it is not yet a polished generic theming/configuration layer.
 
-The watcher drains filesystem events until this interval expires. This bounds
-CPU use during active Codex sessions while still publishing a final render
-after activity stops.
+The watcher performs one full render at startup and local-day rollover. During
+an active day it scans only the current rollout suffix and rewrites only the
+affected recent day, leaving historical pages untouched. It also drains file
+events until the minimum interval expires, coalescing rapid write bursts.
 
 ## Not included yet
 

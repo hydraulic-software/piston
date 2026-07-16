@@ -6,6 +6,7 @@ import json
 import os
 import sqlite3
 import re
+import sys
 from pathlib import Path
 
 import markdown
@@ -24,6 +25,7 @@ AVATAR_SOURCE = Path(
 FAVICON_NAME = os.environ.get("BOT_MONITOR_FAVICON_NAME", "axiom-favicon.png")
 TODO_FILE = Path(os.environ.get("BOT_TODO_FILE", str(HOME / ".local" / "state" / "axiom" / "todo.json")))
 RUN_LOG_DIR = Path(os.environ.get("BOT_RUN_LOG_DIR", str(HOME / ".local" / "state" / "axiom" / "runs")))
+TIMESTAMP_RE = re.compile(rb'"timestamp"\s*:\s*"([^"]+)"')
 
 
 def load_threads(limit: int = 40) -> list[dict]:
@@ -287,7 +289,37 @@ def clean_prompt(prompt: str) -> str:
     return summarize_text(text, 140)
 
 
-def parse_rollout(thread: dict) -> list[dict]:
+def recent_rollout_lines(path: Path, since: dt.datetime) -> tuple[list[str], int]:
+    """Read only the active-day suffix, anchored at its preceding user turn."""
+    since_utc = since.astimezone(dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%S")
+    preceding_user_line: bytes | None = None
+    preceding_user_number = 0
+    user_count = 0
+    started = False
+    selected: list[str] = []
+
+    with path.open("rb") as stream:
+        for raw in stream:
+            is_user_line = b'"type":"user_message"' in raw or b'"type": "user_message"' in raw
+            match = TIMESTAMP_RE.search(raw)
+            timestamp = match.group(1).decode() if match else ""
+
+            if not started and timestamp[:19] >= since_utc:
+                started = True
+                if preceding_user_line is not None and preceding_user_line != raw:
+                    selected.append(preceding_user_line.decode())
+
+            if started:
+                selected.append(raw.decode())
+            elif is_user_line:
+                user_count += 1
+                preceding_user_line = raw
+                preceding_user_number = user_count
+
+    return selected, max(preceding_user_number - 1, 0)
+
+
+def parse_rollout(thread: dict, since: dt.datetime | None = None) -> list[dict]:
     path = Path(thread["rollout_path"])
     if not path.exists():
         return []
@@ -311,7 +343,7 @@ def parse_rollout(thread: dict) -> list[dict]:
         nonlocal current, prelude_entries, prelude_start
         start_at = prelude_start or at
         current = {
-            "id": f"{thread['id']}-{len(wakeups) + 1}",
+            "id": f"{thread['id']}-{wakeup_index_offset + len(wakeups) + 1}",
             "thread_id": thread["id"],
             "thread_title": thread["title"],
             "cwd": short_path(thread["cwd"]),
@@ -354,7 +386,12 @@ def parse_rollout(thread: dict) -> list[dict]:
         prelude_entries = []
         prelude_start = None
 
-    for raw in path.read_text().splitlines():
+    if since is not None:
+        lines, wakeup_index_offset = recent_rollout_lines(path, since)
+    else:
+        lines = path.read_text().splitlines()
+        wakeup_index_offset = 0
+    for raw in lines:
         obj = json.loads(raw)
         at = iso_to_local_dt(obj["timestamp"])
         when = dt_string(at)
@@ -506,15 +543,17 @@ def parse_rollout(thread: dict) -> list[dict]:
             meta_bits.append(thread_title)
         wakeup["context"] = " • ".join(meta_bits)
 
-    apply_structured_summaries(wakeups)
     return wakeups
 
 
-def build_days() -> list[dict]:
+def build_days(since: dt.datetime | None = None) -> list[dict]:
     wakeups: list[dict] = []
     for thread in load_threads():
-        wakeups.extend(parse_rollout(thread))
+        wakeups.extend(parse_rollout(thread, since))
 
+    # Summary sidecars are global to the monitor, not per thread. Loading them
+    # once avoids tens of thousands of file reads on every refresh.
+    apply_structured_summaries(wakeups)
     wakeups.sort(key=lambda item: item["start_ts"], reverse=True)
 
     day_map: dict[str, list[dict]] = {}
@@ -890,6 +929,16 @@ def cleanup(days: list[dict]) -> None:
 
 def main() -> None:
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+    if "--recent" in sys.argv[1:]:
+        local_now = dt.datetime.now().astimezone()
+        local_midnight = local_now.replace(hour=0, minute=0, second=0, microsecond=0)
+        for day in build_days(local_midnight):
+            # The preceding user turn can belong to yesterday. Do not replace
+            # that complete historical page with a deliberately truncated view.
+            if day["day"] == local_midnight.strftime("%Y-%m-%d"):
+                write_day(day)
+        return
+
     write_favicon()
     days = build_days()
     write_index(days)

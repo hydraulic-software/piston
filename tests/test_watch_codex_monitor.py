@@ -1,7 +1,6 @@
 import os
 import subprocess
 import tempfile
-import time
 import unittest
 from pathlib import Path
 
@@ -26,7 +25,7 @@ class WatchCodexMonitorTest(unittest.TestCase):
 
             render_log = home / "renders"
             renderer = bin_dir / "axiom-render-codex-monitor"
-            renderer.write_text(f"#!/bin/sh\ndate +%s.%N >> {render_log}\n")
+            renderer.write_text(f'#!/bin/sh\nprintf "%s %s\\n" "$(date +%s.%N)" "$*" >> {render_log}\n')
             renderer.chmod(0o755)
 
             # Keep stdout open long enough for the watcher to hit its one-second
@@ -39,9 +38,11 @@ class WatchCodexMonitorTest(unittest.TestCase):
             env.update({"HOME": str(home), "BOT_MONITOR_MIN_INTERVAL_SECONDS": "1"})
             subprocess.run([str(SCRIPT)], env=env, check=True, timeout=5)
 
-            timestamps = [float(value) for value in render_log.read_text().splitlines()]
+            renders = [value.split(maxsplit=1) for value in render_log.read_text().splitlines()]
+            timestamps = [float(value[0]) for value in renders]
             self.assertEqual(2, len(timestamps))
             self.assertGreaterEqual(timestamps[1] - timestamps[0], 0.9)
+            self.assertEqual(["--recent"], renders[1][1:])
 
 
 if __name__ == "__main__":

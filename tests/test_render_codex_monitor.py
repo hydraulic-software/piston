@@ -1,5 +1,8 @@
 import importlib.util
 from importlib.machinery import SourceFileLoader
+import datetime as dt
+import json
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -12,6 +15,22 @@ SPEC.loader.exec_module(MODULE)
 
 
 class RenderCodexMonitorTest(unittest.TestCase):
+    def test_recent_rollout_starts_at_preceding_user_turn(self):
+        old_user = {"timestamp": "2026-07-15T21:00:00Z", "payload": {"type": "user_message"}}
+        old_output = {"timestamp": "2026-07-15T21:01:00Z", "payload": {"type": "agent_message"}}
+        current_output = {"timestamp": "2026-07-15T22:01:00Z", "payload": {"type": "agent_message"}}
+
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "rollout.jsonl"
+            path.write_text("\n".join(map(json.dumps, (old_user, old_output, current_output))) + "\n")
+            since = dt.datetime(2026, 7, 15, 22, 0, tzinfo=dt.timezone.utc)
+
+            raw_lines, wakeup_index_offset = MODULE.recent_rollout_lines(path, since)
+            lines = [json.loads(line) for line in raw_lines]
+
+        self.assertEqual([old_user, current_output], lines)
+        self.assertEqual(0, wakeup_index_offset)
+
     def test_typed_tool_output_is_flattened(self):
         output = [
             {"type": "input_text", "text": "Script completed\nOutput:\n"},
