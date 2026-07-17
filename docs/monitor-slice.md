@@ -53,7 +53,10 @@ That is useful enough to share as-is, even though it is not yet a polished gener
 The watcher performs one full render at startup and local-day rollover. During
 an active day it scans only the current rollout suffix and rewrites only the
 affected recent day, leaving historical pages untouched. It also drains file
-events until the minimum interval expires, coalescing rapid write bursts.
+events until the minimum interval expires, coalescing rapid write bursts. The
+watch set deliberately excludes Codex's SQLite/WAL files: rollout creation and
+writes already cover visible session changes, while database housekeeping can
+otherwise trigger renders with no new monitor content.
 
 ## Not included yet
 

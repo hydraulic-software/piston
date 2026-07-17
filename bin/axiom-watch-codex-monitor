@@ -48,7 +48,5 @@ done < <(
     -e close_write,create,move,delete \
     "${HOME}/.codex/sessions" \
     "${HOME}/.local/state/axiom/runs" \
-    "${HOME}/.local/state/axiom/todo.json" \
-    "${HOME}/.codex/state_5.sqlite" \
-    "${HOME}/.codex/state_5.sqlite-wal"
+    "${HOME}/.local/state/axiom/todo.json"
 )

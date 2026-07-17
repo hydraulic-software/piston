@@ -31,7 +31,10 @@ class WatchCodexMonitorTest(unittest.TestCase):
             # Keep stdout open long enough for the watcher to hit its one-second
             # test interval after receiving several immediate events.
             inotifywait = bin_dir / "inotifywait"
-            inotifywait.write_text("#!/bin/sh\nprintf 'one\\ntwo\\nthree\\n'\nsleep 2\n")
+            inotifywait.write_text(
+                f"#!/bin/sh\nprintf '%s' \"$*\" > {home / 'inotify-arguments'}\n"
+                "printf 'one\\ntwo\\nthree\\n'\nsleep 2\n"
+            )
             inotifywait.chmod(0o755)
 
             env = os.environ.copy()
@@ -43,6 +46,11 @@ class WatchCodexMonitorTest(unittest.TestCase):
             self.assertEqual(2, len(timestamps))
             self.assertGreaterEqual(timestamps[1] - timestamps[0], 0.9)
             self.assertEqual(["--recent"], renders[1][1:])
+
+            # Database housekeeping has no user-visible monitor content and
+            # must not be part of the inotify watch set.
+            invocation = (home / "inotify-arguments").read_text()
+            self.assertNotIn("state_5.sqlite", invocation)
 
 
 if __name__ == "__main__":
