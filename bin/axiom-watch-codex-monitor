@@ -23,7 +23,7 @@ render_recent() {
 render
 last_full_render_day=$(date +%F)
 last_render_at=$(date +%s)
-min_interval=${BOT_MONITOR_MIN_INTERVAL_SECONDS:-1}
+min_interval=${BOT_MONITOR_MIN_INTERVAL_SECONDS:-5}
 
 if ! [[ "$min_interval" =~ ^[1-9][0-9]*$ ]]; then
   echo "BOT_MONITOR_MIN_INTERVAL_SECONDS must be a positive integer" >&2
@@ -45,7 +45,7 @@ while read -r _; do
   last_render_at=$(date +%s)
 done < <(
   inotifywait -m -r \
-    -e close_write,create,move,delete \
+    -e modify,close_write,create,move,delete \
     "${HOME}/.codex/sessions" \
     "${HOME}/.local/state/axiom/runs" \
     "${HOME}/.local/state/axiom/todo.json"

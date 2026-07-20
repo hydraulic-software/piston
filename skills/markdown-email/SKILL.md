@@ -49,7 +49,8 @@ In reply mode the helper derives:
 3. Use `--reply-mail` when responding to a message file you already have locally.
 4. Retain that exact path from the read step; do not rediscover "the newest mail" immediately before sending.
 5. Pass `--expect-reply-message-id` for an end-to-end guard against a new message becoming the reply parent.
-6. If you want to inspect the exact MIME before sending, add `--dry-run`.
+6. Confirm the current process has the instance's `BOT_MAIL_FROM` and `BOT_ENVELOPE_FROM` values. If it does not, source the instance environment file or pass the identity explicitly; never use generic development defaults for a real send.
+7. If you want to inspect the exact MIME before sending, add `--dry-run`.
 
 ## Notes
 

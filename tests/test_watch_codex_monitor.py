@@ -51,6 +51,7 @@ class WatchCodexMonitorTest(unittest.TestCase):
             # must not be part of the inotify watch set.
             invocation = (home / "inotify-arguments").read_text()
             self.assertNotIn("state_5.sqlite", invocation)
+            self.assertIn("modify,close_write,create,move,delete", invocation)
 
 
 if __name__ == "__main__":
