@@ -24,6 +24,10 @@ def parse_args():
     parser.add_argument("--subject", help="Message subject")
     parser.add_argument("--markdown-file", type=Path, help="Path to Markdown body file")
     parser.add_argument("--reply-mail", type=Path, help="Existing RFC822 mail file to reply to")
+    parser.add_argument(
+        "--expect-reply-message-id",
+        help="Abort unless --reply-mail has this Message-ID (guards against replying to a newly arrived message)",
+    )
     parser.add_argument("--from-header", default=DEFAULT_FROM, help="From header value")
     parser.add_argument("--envelope-from", default=DEFAULT_ENVELOPE_FROM, help="SMTP envelope sender")
     parser.add_argument("--reply-to", help="Optional Reply-To header value")
@@ -77,6 +81,14 @@ def build_message(args, markdown_text: str) -> EmailMessage:
     plain_body = render_with_pandoc(markdown_text, "plain")
 
     reply_values = reply_context(args.reply_mail) if args.reply_mail else {}
+    if args.expect_reply_message_id:
+        if not args.reply_mail:
+            raise SystemExit("--expect-reply-message-id requires --reply-mail.")
+        if reply_values.get("in_reply_to") != args.expect_reply_message_id:
+            raise SystemExit(
+                "Reply message mismatch: expected "
+                f"{args.expect_reply_message_id}, got {reply_values.get('in_reply_to') or '(missing Message-ID)'}"
+            )
     to_header = args.to or reply_values.get("to")
     subject = args.subject or reply_values.get("subject")
     in_reply_to = args.in_reply_to or reply_values.get("in_reply_to")

@@ -31,6 +31,7 @@ Reply to an existing Maildir message and preserve threading automatically:
 ```bash
 bin/axiom-send-markdown-mail \
   --reply-mail "$HOME/Maildir/new/<message-file>" \
+  --expect-reply-message-id '<message-id-copied-when-reading>' \
   --markdown-file /tmp/body.md
 ```
 
@@ -46,7 +47,9 @@ In reply mode the helper derives:
 1. Write the body in normal Markdown.
 2. Prefer short paragraphs and simple bullet lists.
 3. Use `--reply-mail` when responding to a message file you already have locally.
-4. If you want to inspect the exact MIME before sending, add `--dry-run`.
+4. Retain that exact path from the read step; do not rediscover "the newest mail" immediately before sending.
+5. Pass `--expect-reply-message-id` for an end-to-end guard against a new message becoming the reply parent.
+6. If you want to inspect the exact MIME before sending, add `--dry-run`.
 
 ## Notes
 
