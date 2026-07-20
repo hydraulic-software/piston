@@ -27,6 +27,13 @@ bash -n "$REPO_ROOT/scripts/install-local.sh"
 bash -n "$REPO_ROOT/scripts/update-local.sh"
 bash -n "$REPO_ROOT/scripts/uninstall-local.sh"
 
+# The Unix account is the automation security boundary; do not silently re-add
+# Codex's inner sandbox when adjusting runner arguments.
+if ! grep -q -- '--dangerously-bypass-approvals-and-sandbox' "$REPO_ROOT/bin/axiom-codex-runner"; then
+  echo "runner does not disable Codex approvals and sandboxing" >&2
+  exit 1
+fi
+
 echo "[4/5] Throwaway install smoke test"
 tmpdir="$(mktemp -d)"
 trap 'rm -rf "$tmpdir"' EXIT

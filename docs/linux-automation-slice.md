@@ -62,4 +62,4 @@ After installation, the intended next steps are:
 4. run `systemctl --user daemon-reload`
 5. enable only the units you tested, for example `systemctl --user enable --now axiom-autonomy.timer`
 
-See [`getting-started.md`](getting-started.md) for the full sequence and security model. The runner defaults to Codex workspace-write sandboxing. `BOT_CODEX_DANGER_FULL_ACCESS=1` is an explicit high-risk opt-in intended only for a dedicated, externally isolated account.
+See [`getting-started.md`](getting-started.md) for the full sequence and security model. The runner always disables Codex's built-in sandboxing because the dedicated Unix account is the security boundary.

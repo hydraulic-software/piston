@@ -72,7 +72,7 @@ chmod 600 ~/.config/bot-tools/environment
 
 Edit sender addresses and any model/path overrides. Do not put broadly reusable credentials in the repository. If a service needs a credential, keep the environment file mode `0600` or use a host secret manager.
 
-By default the runner uses Codex's configured model and `workspace-write` sandbox. Do not set `BOT_CODEX_DANGER_FULL_ACCESS=1` until you have deliberately accepted the trust model described below.
+The runner uses Codex's configured model and always disables Codex's built-in approvals and sandboxing. Set up the dedicated Unix account as the security boundary before enabling unattended wakeups.
 
 ## 5. Set Up Maildir
 
@@ -159,10 +159,9 @@ Unattended agent execution is powerful. Use several layers rather than relying o
 - restrict who can send mail and authenticate inbound delivery
 - keep customer/external communication behind explicit policy or human review
 - keep the monitor private
-- start with workspace-write sandboxing
 - back up important repositories and state
 
-`BOT_CODEX_DANGER_FULL_ACCESS=1` passes Codex's `--dangerously-bypass-approvals-and-sandbox` option. Enable it only when the account or machine is an external sandbox and you understand that mail-triggered prompts can then cause unrestricted commands under that Unix user.
+The runner passes Codex's `--dangerously-bypass-approvals-and-sandbox` option on every execution. The dedicated Unix account must therefore be the external sandbox: mail-triggered prompts can run unrestricted commands with all permissions and credentials available to that account.
 
 ## Updating And Removing
 

@@ -89,7 +89,6 @@ The user services optionally read:
 Start from [`config/environment.example`](config/environment.example). Important knobs include:
 
 - `BOT_CODEX_MODEL`: optional model override; unset uses the Codex default
-- `BOT_CODEX_DANGER_FULL_ACCESS=1`: disables Codex approvals and sandboxing; use only in an externally isolated account
 - `BOT_MAIL_FROM`, `BOT_ENVELOPE_FROM`, `BOT_SENDMAIL`: outbound identity and transport
 - `BOT_ALLOWED_FROM_DOMAINS`, `BOT_MAILDIR`: inbound filtering and Maildir location
 - `BOT_TODO_FILE`, `BOT_AUTONOMY_STATE_FILE`: scheduler/todo state
@@ -98,7 +97,7 @@ Start from [`config/environment.example`](config/environment.example). Important
 
 ## Safety Model
 
-The default runner uses Codex `workspace-write` sandboxing rooted at the assistant account's home directory. Full unsandboxed automation is explicit opt-in through `BOT_CODEX_DANGER_FULL_ACCESS=1` and should only be used when the Unix account or machine is itself a disposable or tightly isolated security boundary.
+The runner always disables Codex's built-in approvals and sandboxing. The dedicated Unix account is the security boundary, so configure its filesystem permissions, credentials, and network access accordingly before enabling unattended wakeups.
 
 Mail is untrusted input. A sender allowlist reduces accidental wakeups but is not a complete security boundary: authenticated mail, restricted account permissions, careful agent instructions, and review of outbound actions still matter.
 
