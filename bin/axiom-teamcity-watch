@@ -13,15 +13,12 @@ import urllib.parse
 import urllib.request
 
 
-DEFAULT_BASE_URL = "https://teamcity.hq.hydraulic.software"
-
-
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Watch a TeamCity build or branch build.")
     parser.add_argument(
         "--base-url",
-        default=os.environ.get("TEAMCITY_BASE_URL", DEFAULT_BASE_URL),
-        help="TeamCity base URL (default: TEAMCITY_BASE_URL or HQ TeamCity)",
+        default=os.environ.get("TEAMCITY_BASE_URL"),
+        help="TeamCity base URL (or set TEAMCITY_BASE_URL)",
     )
     parser.add_argument("--build-type", help="TeamCity build type id, e.g. Product_Axiom_ProductLinux")
     parser.add_argument("--branch", help="Branch name to watch, e.g. rr/axiom/co-710-origin-fix")
@@ -62,6 +59,8 @@ def parse_args() -> argparse.Namespace:
         help="While waiting on a live build, print the latest N log lines once and then any newly appended lines",
     )
     args = parser.parse_args()
+    if not args.base_url:
+        parser.error("pass --base-url or set TEAMCITY_BASE_URL")
     if not args.build_id and not (args.build_type and args.branch):
         parser.error("pass either --build-id or both --build-type and --branch")
     return args

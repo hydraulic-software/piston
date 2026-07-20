@@ -4,6 +4,7 @@ Description=Publish private HTML monitor for Codex sessions
 [Service]
 Type=simple
 WorkingDirectory=%h
+EnvironmentFile=-%h/.config/bot-tools/environment
 ExecStart=%h/.local/bin/axiom-watch-codex-monitor
 Restart=always
 RestartSec=2

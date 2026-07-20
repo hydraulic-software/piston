@@ -11,8 +11,8 @@ from email.message import EmailMessage
 from pathlib import Path
 
 
-DEFAULT_FROM = os.environ.get("BOT_MAIL_FROM", "Axiom <axiom@hq.hydraulic.software>")
-DEFAULT_ENVELOPE_FROM = os.environ.get("BOT_ENVELOPE_FROM", "axiom@hq.hydraulic.software")
+DEFAULT_FROM = os.environ.get("BOT_MAIL_FROM", "Assistant <assistant@localhost>")
+DEFAULT_ENVELOPE_FROM = os.environ.get("BOT_ENVELOPE_FROM", "assistant@localhost")
 SENDMAIL = os.environ.get("BOT_SENDMAIL", "/usr/sbin/sendmail")
 
 

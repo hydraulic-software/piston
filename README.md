@@ -1,123 +1,126 @@
 # Bot Tools
 
-Small shared helper/tooling slice for assistants that need lightweight mail, TeamCity, todo, and Linux automation helpers.
+Bot Tools is a small, inspectable automation kit for running a Codex-based assistant from a dedicated Linux user account. It connects three useful loops:
 
-This is intentionally a small first slice:
+- wake Codex when mail arrives in a local Maildir
+- run workload-aware autonomous and nightly check-ins with `systemd --user`
+- publish a private HTML/JSON activity monitor with a lightweight todo board
 
-- `bin/axiom-autonomy-scheduler`
-- `bin/axiom-codex-runner`
-- `bin/axiom-mail-filter`
-- `bin/axiom-render-codex-monitor`
-- `bin/axiom-review-followup`
-- `bin/axiom-watch-codex-monitor`
-- `bin/axiom-send-markdown-mail`
-- `bin/axiom-teamcity-watch`
-- `bin/axiom-todo`
-- `bin/axiom-update-codex`
-- `systemd/user/*.service|*.timer|*.path`
-- `skills/markdown-email/SKILL.md`
+The repository also includes Markdown email, TeamCity, review-follow-up, and staged Codex-upgrade helpers. It grew out of a real assistant account, so commands retain the `axiom-` prefix, but the main paths and identities are configurable.
 
-The goal is to prove the extraction boundary before attempting to move more HQ-specific tooling like the Codex runner, monitor renderer, or mail filter.
+## Start Here
 
-## Current status
+Read [`docs/getting-started.md`](docs/getting-started.md). It covers prerequisites, a throwaway validation run, installation, configuration, mail delivery, enabling timers, safety boundaries, and rollback.
 
-- intentionally small first slice, not a full automation framework
-- helpers still keep their Axiom-origin names for now
-- the included helpers are parameterized enough to run outside this exact HQ account
-- a minimal local bootstrap path exists via `scripts/install-local.sh`
-- an optional Linux user-unit slice now exists under `systemd/user/`
-
-## Portable knobs already added
-
-- `axiom-send-markdown-mail`
-  - `BOT_MAIL_FROM`
-  - `BOT_ENVELOPE_FROM`
-  - `BOT_SENDMAIL`
-- `axiom-teamcity-watch`
-  - `--base-url`
-  - `TEAMCITY_BASE_URL`
-- `axiom-review-followup`
-  - review worktree discovery via local `git worktree` state
-  - TeamCity follow-up scoring via `axiom-teamcity-watch`
-  - retention-aware handling for older long-lived review branches whose CI history has aged out
-- `axiom-todo`
-  - `BOT_TODO_FILE`
-  - `list --active`
-- `axiom-autonomy-scheduler`
-  - `BOT_TODO_FILE`
-  - `BOT_AUTONOMY_STATE_FILE`
-- `axiom-update-codex`
-  - `BOT_CODEX_INSTALL_DIR`
-- `axiom-mail-filter`
-  - `BOT_ALLOWED_FROM_DOMAINS`
-  - `BOT_MAILDIR`
-  - `BOT_MAIL_FILTER_LOG`
-- `axiom-render-codex-monitor`
-  - `BOT_CODEX_STATE_DB`
-  - `BOT_MONITOR_OUTPUT_DIR`
-  - `BOT_MONITOR_AVATAR`
-  - `BOT_MONITOR_FAVICON_NAME`
-  - `BOT_TODO_FILE`
-  - `BOT_RUN_LOG_DIR`
-
-## Layout
-
-- `bin/`
-  - portable helper scripts
-- `skills/`
-  - reusable Codex skills that pair with the helpers
-- `docs/`
-  - shared setup/migration notes
-- `systemd/user/`
-  - example Linux user units for timer, nightly, and Maildir-triggered wakeups
-- `profiles/`
-  - host/account-specific overlays that should not become the default shared behavior
-- `scripts/`
-  - small install/bootstrap helpers for local use
-
-## Install
-
-Clone it:
+The shortest safe evaluation path is:
 
 ```bash
-git clone git@hq.hydraulic.software:axiom/bot-tools.git
+tar -xf bot-tools.tar.gz
 cd bot-tools
+scripts/check.sh
+scripts/install-local.sh --copy
 ```
 
-For a simple local bootstrap from this repo:
+Copy mode is recommended for a first evaluation. Once the setup is understood, [`scripts/update-local.sh`](scripts/update-local.sh) provides versioned release snapshots and stable entrypoints.
+
+## Included Components
+
+- `bin/axiom-codex-runner`: non-interactive mail, timer, and nightly Codex entrypoint
+- `bin/axiom-autonomy-scheduler`: changes timer cadence based on active/background todos
+- `bin/axiom-mail-filter`: optional sender-domain filter that delivers RFC822 messages into Maildir
+- `bin/axiom-render-codex-monitor` and `bin/axiom-watch-codex-monitor`: private activity pages with incremental refreshes
+- `bin/axiom-todo`: small JSON-backed rolling todo board
+- `bin/axiom-send-markdown-mail`: multipart plain-text/HTML mail with reply threading
+- `bin/axiom-teamcity-watch`: TeamCity build polling and log tails
+- `bin/axiom-review-followup`: opinionated review-worktree/TeamCity follow-up helper
+- `bin/axiom-update-codex`: staged, exact-version Codex CLI upgrades
+- `systemd/user/`: example user services, timers, and Maildir path watcher
+- `skills/markdown-email/`: companion Codex skill for reliable email formatting
+
+## Requirements
+
+Core automation expects:
+
+- Linux with `systemd --user`
+- Bash, Python 3.10+, Git, `flock`, and `inotifywait`
+- an installed and authenticated `codex` CLI
+- a dedicated Unix account whose home directory is the assistant workspace
+
+Email additionally needs:
+
+- a Maildir at `~/Maildir`
+- an MTA or delivery rule that places inbound messages in `~/Maildir/new`
+- a `sendmail`-compatible command and Pandoc for formatted outbound mail
+
+The repository does not configure DNS, SMTP credentials, DKIM, an MTA, or public web serving. Those are host policy and should be set up separately.
+
+## Installation Modes
 
 ```bash
+# Symlink helpers to this checkout.
 scripts/install-local.sh
-```
 
-For the Linux automation slice as well:
+# Copy helpers so the install is independent of the checkout.
+scripts/install-local.sh --copy
 
-```bash
-scripts/install-local.sh --systemd
-```
+# Include example systemd user units.
+scripts/install-local.sh --copy --systemd
 
-For a safer managed update model that installs a copied release snapshot instead of pointing live entrypoints straight at the repo working tree:
-
-```bash
+# Install an immutable release snapshot and stable symlinks.
 scripts/update-local.sh --systemd
 ```
 
-See [`docs/install.md`](docs/install.md) for the symlink-vs-copy behavior and current assumptions, [`docs/linux-automation-slice.md`](docs/linux-automation-slice.md) for the Linux user-unit layer, and [`docs/monitor-slice.md`](docs/monitor-slice.md) for the shared monitor layer.
-
-See [`docs/codex-upgrades.md`](docs/codex-upgrades.md) for the version-pinned, staged Codex CLI upgrade procedure.
-
-For the matching removal path:
+Remove installed helper names and units with:
 
 ```bash
 scripts/uninstall-local.sh
 ```
 
+See [`docs/install.md`](docs/install.md) for details.
+
+## Configuration
+
+The user services optionally read:
+
+```text
+~/.config/bot-tools/environment
+```
+
+Start from [`config/environment.example`](config/environment.example). Important knobs include:
+
+- `BOT_CODEX_MODEL`: optional model override; unset uses the Codex default
+- `BOT_CODEX_DANGER_FULL_ACCESS=1`: disables Codex approvals and sandboxing; use only in an externally isolated account
+- `BOT_MAIL_FROM`, `BOT_ENVELOPE_FROM`, `BOT_SENDMAIL`: outbound identity and transport
+- `BOT_ALLOWED_FROM_DOMAINS`, `BOT_MAILDIR`: inbound filtering and Maildir location
+- `BOT_TODO_FILE`, `BOT_AUTONOMY_STATE_FILE`: scheduler/todo state
+- `BOT_MONITOR_OUTPUT_DIR`, `BOT_CODEX_STATE_DB`, `BOT_RUN_LOG_DIR`: monitor inputs/outputs
+- `TEAMCITY_BASE_URL`, `TEAMCITY_API_KEY`: optional TeamCity integration
+
+## Safety Model
+
+The default runner uses Codex `workspace-write` sandboxing rooted at the assistant account's home directory. Full unsandboxed automation is explicit opt-in through `BOT_CODEX_DANGER_FULL_ACCESS=1` and should only be used when the Unix account or machine is itself a disposable or tightly isolated security boundary.
+
+Mail is untrusted input. A sender allowlist reduces accidental wakeups but is not a complete security boundary: authenticated mail, restricted account permissions, careful agent instructions, and review of outbound actions still matter.
+
+The monitor may expose prompts, paths, command output, and mail-derived text. Publish it only to a private/authenticated location.
+
 ## Validation
 
-For a quick local sanity check of the staged slice:
+Run:
 
 ```bash
 scripts/check.sh
 ```
 
-That runs Python syntax checks and a throwaway install smoke test.
+This performs Python syntax checks, unit tests, shell syntax checks, a throwaway install/uninstall test, and a managed-release smoke test without changing the real account.
+
+## Scope And Known Opinions
+
+The mail/timer/nightly loop, todo board, and monitor are the reusable core. `axiom-review-followup` and `profiles/hq-axiom/` are examples from the original deployment and remain intentionally opinionated around its repository naming and workflow. They are safe to ignore or adapt.
+
+More detail:
+
+- [`docs/linux-automation-slice.md`](docs/linux-automation-slice.md)
+- [`docs/monitor-slice.md`](docs/monitor-slice.md)
+- [`docs/codex-upgrades.md`](docs/codex-upgrades.md)
+- [`docs/portable-helper-slice.md`](docs/portable-helper-slice.md)

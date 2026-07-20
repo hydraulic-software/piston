@@ -1,0 +1,18 @@
+# Copy to ~/.config/bot-tools/environment and adjust for your account.
+# systemd EnvironmentFile syntax is KEY=value, not shell syntax.
+
+# Optional: omit this to use the Codex CLI's configured default model.
+# BOT_CODEX_MODEL=your-model-name
+
+# Leave disabled unless this is a dedicated, externally isolated account.
+BOT_CODEX_DANGER_FULL_ACCESS=0
+
+# Sender identity used by axiom-send-markdown-mail.
+BOT_MAIL_FROM="Assistant <assistant@example.com>"
+BOT_ENVELOPE_FROM=assistant@example.com
+
+# Optional overrides.
+# BOT_SENDMAIL=/usr/sbin/sendmail
+# BOT_ALLOWED_FROM_DOMAINS=example.com
+# BOT_MONITOR_OUTPUT_DIR=/home/assistant/private_html
+# TEAMCITY_BASE_URL=https://teamcity.example.com

@@ -21,7 +21,7 @@ Send a new message from a Markdown file:
 
 ```bash
 bin/axiom-send-markdown-mail \
-  --to mike@hydraulic.software \
+  --to person@example.com \
   --subject "Subject here" \
   --markdown-file /tmp/body.md
 ```
@@ -30,7 +30,7 @@ Reply to an existing Maildir message and preserve threading automatically:
 
 ```bash
 bin/axiom-send-markdown-mail \
-  --reply-mail /home/axiom/Maildir/new/<message-file> \
+  --reply-mail "$HOME/Maildir/new/<message-file>" \
   --markdown-file /tmp/body.md
 ```
 

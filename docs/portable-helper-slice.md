@@ -11,22 +11,16 @@ They are small, already useful, and now parameterized enough to stop depending o
 - simple rolling todo helper
 - the matching markdown-email skill
 
-## Why not the rest yet
+## How the scope widened
 
-The following were originally out of scope for the first slice because they were too tied to this host/account:
-
-- monitor renderer/watcher
-- nightly summary helper
-- most operational notes and wiki content
-
-Since then the shared repo has widened one step and now includes a Linux automation layer too:
+The first extraction intentionally omitted the monitor and runner. The repo has since widened to include the reusable Linux automation and monitor layers:
 
 - a portable `axiom-codex-runner`
 - a workload-sensitive `axiom-autonomy-scheduler`
 - a configurable `axiom-mail-filter`
 - example `systemd --user` units for timer, nightly, and Maildir-triggered wakeups
 
-The remaining boundary is now mostly around local profile state and HQ-specific policy, not around Maildir, `systemd`, or the monitor stack themselves.
+The remaining boundary is now around local profile state, credentials, MTA/web-server setup, and company policy rather than Maildir, `systemd`, or the monitor stack themselves.
 
 ## What a future cleanup would likely do
 

@@ -4,4 +4,5 @@ Description=Wake Codex because new mail arrived
 [Service]
 Type=oneshot
 WorkingDirectory=%h
+EnvironmentFile=-%h/.config/bot-tools/environment
 ExecStart=%h/.local/bin/axiom-codex-runner mail

@@ -1,6 +1,6 @@
 # Local Install
 
-This repo is still intentionally small, so the install story is still lightweight too.
+For a complete first-time setup, start with [`getting-started.md`](getting-started.md). This page describes only the installer behavior.
 
 ## Quick start
 
@@ -74,8 +74,13 @@ This repo now includes a Linux automation slice and a reusable monitor slice too
 ## Expectations
 
 - `~/.local/bin` should already be on your `PATH`
+- the automation runner expects an installed/authenticated `codex` CLI, Bash, and `flock`
+- the monitor watcher expects `inotifywait` from `inotify-tools`
 - the Markdown mail helper expects `pandoc` and a working `sendmail`-compatible binary
-- the TeamCity helper expects a valid TeamCity API token in the environment used by that host
+- the TeamCity helper expects both `TEAMCITY_BASE_URL` and `TEAMCITY_API_KEY` (or an explicit `--base-url`)
+- inbound mail delivery and web serving are host responsibilities and are not configured by the installer
+
+The example user services optionally load `~/.config/bot-tools/environment`. Start from `config/environment.example`, keep credentials out of the repository, and set the installed file to mode `0600`.
 
 ## Validation
 

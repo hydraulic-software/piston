@@ -5,10 +5,9 @@ This directory is reserved for host/account-specific overlays that should not be
 Examples that still belong on the HQ side instead of in the shared core:
 
 - mail filter policy
-- user `systemd` automation units
-- Codex runner prompt templates
-- monitor publishing paths
 - account-specific sender defaults
+- credentials and service environment values
+- web server and MTA configuration
 
 The current shared repo now includes one concrete example profile file here:
 
