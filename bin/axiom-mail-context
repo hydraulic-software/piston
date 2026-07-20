@@ -1,0 +1,52 @@
+#!/usr/bin/env python3
+"""Render stable identifiers for messages that a mail wakeup should handle."""
+
+import argparse
+from email import policy
+from email.parser import BytesParser
+from pathlib import Path
+
+
+def clean_header(value: object | None) -> str:
+    return " ".join(str(value or "(missing)").split())
+
+
+def render_mail_context(maildir: Path) -> str:
+    messages = sorted(
+        (path for path in maildir.iterdir() if path.is_file()),
+        key=lambda path: (path.stat().st_mtime_ns, path.name),
+        reverse=True,
+    ) if maildir.is_dir() else []
+
+    if not messages:
+        return f"No message files were present in {maildir}."
+
+    lines = [
+        "Maildir messages present when this wakeup acquired the automation lock.",
+        "Use the exact Source path and Message-ID below when replying; do not rediscover the newest file.",
+    ]
+    for index, path in enumerate(messages, start=1):
+        with path.open("rb") as stream:
+            message = BytesParser(policy=policy.default).parse(stream, headersonly=True)
+        lines.extend(
+            (
+                f"Message {index}:",
+                f"  Source: {path}",
+                f"  Message-ID: {clean_header(message.get('Message-ID'))}",
+                f"  From: {clean_header(message.get('From'))}",
+                f"  Date: {clean_header(message.get('Date'))}",
+                f"  Subject: {clean_header(message.get('Subject'))}",
+            )
+        )
+    return "\n".join(lines)
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("maildir", nargs="?", type=Path, default=Path.home() / "Maildir" / "new")
+    args = parser.parse_args()
+    print(render_mail_context(args.maildir))
+
+
+if __name__ == "__main__":
+    main()

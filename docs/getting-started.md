@@ -110,6 +110,11 @@ For mail mode, first place a harmless test message in `~/Maildir/new`, then run:
 axiom-codex-runner mail
 ```
 
+The mail runner snapshots the exact source path and parsed `Message-ID` of every file in
+`~/Maildir/new` after acquiring its automation lock and includes them in the Codex prompt.
+This gives reply workflows a stable parent identity even when several deliveries are
+coalesced into one wakeup.
+
 The runner first tries to resume the most recent Codex session and falls back to a fresh one. A dedicated account avoids accidentally resuming an unrelated personal session.
 
 ## 7. Enable User Units

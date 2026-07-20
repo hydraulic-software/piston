@@ -9,7 +9,7 @@ fi
 
 case "${mode}" in
   mail)
-    prompt="The time is $(date). You've got mail! Find it in your ~/Maildir, handle the message end-to-end if practical, and if it points at a ticket or issue treat updating that upstream thread/ticket as part of done, not optional follow-up."
+    prompt="The time is $(date). You've got mail! Handle the messages identified in the mail wakeup context end-to-end if practical, and if one points at a ticket or issue treat updating that upstream thread/ticket as part of done, not optional follow-up."
     ;;
   timer)
     prompt="The time is $(date). Autonomous check-in: wake up, review the current state, and see if there is anything useful to do. Prefer finishing a chosen issue in one wakeup when practical instead of spreading it across multiple wakeups, and when issue work reaches a conclusion treat updating the relevant ticket/thread as part of completion before clearing the todo."
@@ -42,6 +42,17 @@ exec 9>"${lock_file}"
 log "waiting for lock ${lock_file}"
 flock 9
 log "acquired lock"
+
+if [[ "${mode}" == "mail" ]]; then
+  mail_context_helper="${HOME}/.local/bin/axiom-mail-context"
+  if [[ -x "${mail_context_helper}" ]]; then
+    mail_context="$("${mail_context_helper}")"
+    prompt+=$'\n\nMail wakeup context:\n'"${mail_context}"
+    log "included exact Maildir source paths and message IDs in prompt"
+  else
+    log "mail context helper not found at ${mail_context_helper}"
+  fi
+fi
 
 common_args=(
   --skip-git-repo-check
