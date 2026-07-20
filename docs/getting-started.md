@@ -112,6 +112,10 @@ axiom-codex-runner mail
 
 The mail runner snapshots the exact source path and parsed `Message-ID` of every file in
 `~/Maildir/new` after acquiring its automation lock and includes them in the Codex prompt.
+The directory is the processing state: every file still in `new/` is pending, including
+messages left behind by a failed run. After successful handling, the agent moves the exact
+source file to `cur/` with the Maildir `:2,S` seen suffix. Timestamps are used only to order
+the displayed context, never to decide whether a message needs handling.
 This gives reply workflows a stable parent identity even when several deliveries are
 coalesced into one wakeup.
 

@@ -39,6 +39,9 @@ class MailContextTest(unittest.TestCase):
 
             output = self.module.render_mail_context(maildir)
 
+            self.assertIn("Pending Maildir messages present in new/", output)
+            self.assertIn("move its Source from new/ to cur/ and append :2,S", output)
+            self.assertIn("leave failures in new/ for retry", output)
             self.assertIn(f"Source: {newer}", output)
             self.assertIn("Message-ID: <new@example.com>", output)
             self.assertLess(output.index(str(newer)), output.index(str(older)))

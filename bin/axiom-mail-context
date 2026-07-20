@@ -22,8 +22,9 @@ def render_mail_context(maildir: Path) -> str:
         return f"No message files were present in {maildir}."
 
     lines = [
-        "Maildir messages present when this wakeup acquired the automation lock.",
+        "Pending Maildir messages present in new/ when this wakeup acquired the automation lock.",
         "Use the exact Source path and Message-ID below when replying; do not rediscover the newest file.",
+        "After a message is handled successfully, move its Source from new/ to cur/ and append :2,S; leave failures in new/ for retry.",
     ]
     for index, path in enumerate(messages, start=1):
         with path.open("rb") as stream:
