@@ -97,9 +97,16 @@ Start from [`config/environment.example`](config/environment.example). Important
 
 ## Safety Model
 
-The runner always disables Codex's built-in approvals and sandboxing. The dedicated Unix account is the security boundary, so configure its filesystem permissions, credentials, and network access accordingly before enabling unattended wakeups.
+Bot Tools deliberately uses the Unix account as its security boundary. On every mail, timer, and nightly invocation, `axiom-codex-runner` passes Codex `--dangerously-bypass-approvals-and-sandbox`; there is no supported mode in which the runner relies on Codex's own approvals or filesystem sandbox.
 
-Mail is untrusted input. A sender allowlist reduces accidental wakeups but is not a complete security boundary: authenticated mail, restricted account permissions, careful agent instructions, and review of outbound actions still matter.
+Install Bot Tools only in a dedicated account prepared for that trust model. Before enabling unattended wakeups:
+
+- limit the account's filesystem permissions to data the assistant is allowed to read and change
+- expose only the credentials, network services, and command-line tools the assistant is allowed to use without per-command approval
+- do not grant root access or membership in privileged groups unless that is an intentional part of the deployment
+- treat the whole account as potentially controlled by any prompt that the automation accepts
+
+Mail is untrusted input, and mail wakeups run with every permission available to the assistant account. A sender allowlist reduces accidental wakeups but is not a complete security boundary: authenticate inbound mail, restrict account permissions, constrain who can trigger automation, and keep external communication behind an appropriate policy or review step.
 
 The monitor may expose prompts, paths, command output, and mail-derived text. Publish it only to a private/authenticated location.
 
