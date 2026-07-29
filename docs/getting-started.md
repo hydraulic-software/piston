@@ -95,6 +95,14 @@ Then send a real test only after `BOT_MAIL_FROM`, `BOT_ENVELOPE_FROM`, and the M
 
 If you use `axiom-mail-filter` as a delivery command, configure `BOT_ALLOWED_FROM_DOMAINS` or `~/.config/bot-tools/mail-filter-domains.txt`. An empty allowlist accepts all senders.
 
+For unattended mail processing, configure the delivery command with
+`BOT_REQUIRE_ALIGNED_DKIM=1` and set `BOT_AUTH_RESULTS_ID` to the local
+verifier's authserv-id. The filter then requires an exact match between the
+visible `From` domain and a passing DKIM `header.d` value. It trusts only a
+local `Authentication-Results` header inserted above the first `Received`
+header, so a sender-supplied result cannot satisfy the check. The local MTA
+must run a DKIM verifier before invoking the filter.
+
 ## 6. Test Each Wakeup Manually
 
 Before enabling timers, run each mode from an interactive shell and inspect its transcript under `~/.local/state/axiom/runs`:

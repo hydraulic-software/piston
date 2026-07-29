@@ -4,6 +4,7 @@ import email.utils
 import mailbox
 import os
 from pathlib import Path
+import re
 import sys
 
 
@@ -15,6 +16,8 @@ LOG_PATH = Path(
 DOMAINS_FILE = Path(
     os.environ.get("BOT_MAIL_FILTER_DOMAINS_FILE", str(HOME / ".config/bot-tools/mail-filter-domains.txt"))
 )
+REQUIRE_ALIGNED_DKIM = os.environ.get("BOT_REQUIRE_ALIGNED_DKIM", "").lower() in {"1", "true", "yes"}
+AUTH_RESULTS_ID = os.environ.get("BOT_AUTH_RESULTS_ID", "").strip().lower()
 
 
 def load_allowed_domains() -> set[str]:
@@ -39,29 +42,76 @@ def load_allowed_domains() -> set[str]:
 ALLOWED_DOMAINS = load_allowed_domains()
 
 
-def sender_allowed(raw_message: bytes) -> tuple[bool, str]:
+def sender_allowed(raw_message: bytes) -> tuple[bool, str, str]:
     msg = email.message_from_bytes(raw_message)
     from_header = msg.get("From", "")
     _, addr = email.utils.parseaddr(from_header)
     domain = addr.rsplit("@", 1)[-1].lower() if "@" in addr else ""
+    sender = addr or from_header or "(missing From)"
     if not ALLOWED_DOMAINS:
-        return True, addr or from_header or "(missing From)"
-    return domain in ALLOWED_DOMAINS, addr or from_header or "(missing From)"
+        return True, sender, "allowed"
+    if domain in ALLOWED_DOMAINS:
+        return True, sender, "allowed"
+    return False, sender, "from-domain-not-allowed"
 
 
-def log_drop(sender: str) -> None:
+def dkim_authenticated(raw_message: bytes) -> tuple[bool, str]:
+    if not AUTH_RESULTS_ID:
+        return False, "missing-auth-results-id-config"
+
+    msg = email.message_from_bytes(raw_message)
+    headers = list(msg.raw_items())
+    first_received = next((index for index, (name, _) in enumerate(headers) if name.lower() == "received"), None)
+    if first_received is None:
+        return False, "missing-received-header"
+
+    from_header = msg.get("From", "")
+    _, addr = email.utils.parseaddr(from_header)
+    from_domain = addr.rsplit("@", 1)[-1].lower() if "@" in addr else ""
+    if not from_domain:
+        return False, "missing-from-domain"
+
+    # The local verifier inserts Authentication-Results above Postfix's own
+    # Received header. Results supplied by an SMTP sender remain below that
+    # boundary and must not be trusted.
+    for index, (name, value) in enumerate(headers):
+        if index >= first_received:
+            break
+        if name.lower() != "authentication-results":
+            continue
+        authserv_id, separator, results = value.partition(";")
+        if not separator or authserv_id.strip().lower() != AUTH_RESULTS_ID:
+            continue
+        for result in re.finditer(
+            r"\bdkim\s*=\s*pass\b(?P<properties>.*?)(?=\b(?:arc|auth|compauth|dkim|dmarc|iprev|spf)\s*=|$)",
+            results,
+            flags=re.IGNORECASE | re.DOTALL,
+        ):
+            signing_domain = re.search(
+                r"\bheader\.d\s*=\s*([^;\s]+)",
+                result.group("properties"),
+                flags=re.IGNORECASE,
+            )
+            if signing_domain and signing_domain.group(1).strip().lower() == from_domain:
+                return True, "aligned-dkim-pass"
+    return False, "missing-aligned-dkim-pass"
+
+
+def log_drop(sender: str, reason: str) -> None:
     LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
     with LOG_PATH.open("a", encoding="utf-8") as handle:
-        handle.write(f"dropped sender={sender}\n")
+        handle.write(f"dropped reason={reason} sender={sender}\n")
 
 
 def main() -> int:
     raw_message = sys.stdin.buffer.read()
-    allowed, sender = sender_allowed(raw_message)
+    allowed, sender, reason = sender_allowed(raw_message)
+    if allowed and REQUIRE_ALIGNED_DKIM:
+        allowed, reason = dkim_authenticated(raw_message)
     if allowed:
         mailbox.Maildir(str(MAILDIR), factory=None, create=True).add(raw_message)
     else:
-        log_drop(sender)
+        log_drop(sender, reason)
     return 0
 
 
