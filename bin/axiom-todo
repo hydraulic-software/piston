@@ -60,6 +60,22 @@ def load_data() -> dict:
             normalized_item["done_day"] = done_day
         else:
             normalized_item.pop("done_day", None)
+        progress = item.get("progress")
+        if progress is not None:
+            if not isinstance(progress, dict):
+                raise SystemExit(f"progress for {item.get('id')!r} must be an object")
+            try:
+                current = int(progress["current"])
+                total = int(progress["total"])
+            except (KeyError, TypeError, ValueError) as exc:
+                raise SystemExit(f"progress for {item.get('id')!r} requires integer current and total") from exc
+            if total <= 0 or current < 0 or current > total:
+                raise SystemExit(f"invalid progress for {item.get('id')!r}: {current}/{total}")
+            normalized_item["progress"] = {
+                "current": current,
+                "total": total,
+                "label": str(progress.get("label", "") or "").strip(),
+            }
         normalized.append(normalized_item)
     data["items"] = normalized
     return data
@@ -117,6 +133,8 @@ def cmd_list(args: argparse.Namespace) -> int:
             meta.append(f"updated={item['updated_day']}")
         if item.get("done_day"):
             meta.append(f"done={item['done_day']}")
+        if item.get("progress"):
+            meta.append(f"progress={item['progress']['current']}/{item['progress']['total']}")
         print(f"{item['id']}\t[{', '.join(meta)}]\t{item['text']}")
     return 0
 
@@ -159,6 +177,18 @@ def cmd_set_tier(args: argparse.Namespace, tier: str) -> int:
     return 0
 
 
+def cmd_set_progress(args: argparse.Namespace) -> int:
+    if args.total <= 0 or args.current < 0 or args.current > args.total:
+        raise SystemExit(f"invalid progress: {args.current}/{args.total}")
+    data = load_data()
+    item = find_item(data, args.id)
+    item["progress"] = {"current": args.current, "total": args.total, "label": args.label.strip()}
+    item["updated_day"] = today()
+    save_data(data)
+    print(f"{item['id']}\t{args.current}/{args.total}")
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="axiom-todo", description=f"Edit {TODO_FILE}")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -197,6 +227,13 @@ def build_parser() -> argparse.ArgumentParser:
     p_background = sub.add_parser("background", help="Mark a todo item as a background-tier item")
     p_background.add_argument("id", help="Item id")
     p_background.set_defaults(func=lambda args: cmd_set_tier(args, "background"))
+
+    p_progress = sub.add_parser("progress", help="Set numeric progress for an item")
+    p_progress.add_argument("id", help="Item id")
+    p_progress.add_argument("current", type=int, help="Completed units")
+    p_progress.add_argument("total", type=int, help="Total units")
+    p_progress.add_argument("--label", default="", help="Optional unit label displayed beside the bar")
+    p_progress.set_defaults(func=cmd_set_progress)
 
     return parser
 

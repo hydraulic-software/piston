@@ -126,6 +126,22 @@ def load_todos(day: str) -> list[dict]:
         done_day = str(item.get("done_day", "") or "")
         if status == "done" and done_day and done_day < day:
             continue
+        progress = item.get("progress")
+        normalized_progress = None
+        if isinstance(progress, dict):
+            try:
+                current = int(progress.get("current"))
+                total = int(progress.get("total"))
+            except (TypeError, ValueError):
+                pass
+            else:
+                if total > 0 and 0 <= current <= total:
+                    normalized_progress = {
+                        "current": current,
+                        "total": total,
+                        "percent": round(current * 100 / total, 1),
+                        "label": str(progress.get("label", "") or "").strip(),
+                    }
         items.append(
             {
                 "id": item.get("id") or f"todo-{index}",
@@ -134,6 +150,7 @@ def load_todos(day: str) -> list[dict]:
                 "tier": tier,
                 "updated_day": str(item.get("updated_day", "") or ""),
                 "done_day": done_day,
+                "progress": normalized_progress,
             }
         )
     order = {
@@ -713,7 +730,13 @@ def day_shell(day: str) -> str:
     .todo-tier {{ font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.05em; padding: 2px 6px; border-radius: 999px; background: rgba(27,36,40,0.08); color: var(--muted); }}
     .todo.now .todo-tier {{ display: none; }}
     .todo.background .todo-tier {{ background: #efe8d7; color: #7a5a11; }}
+    .todo-body {{ min-width: 0; }}
     .todo-text {{ font-size: 0.9rem; line-height: 1.25; }}
+    .todo-progress {{ display: grid; grid-template-columns: minmax(90px, 1fr) auto; gap: 8px; align-items: center; margin-top: 7px; }}
+    .todo-progress-track {{ height: 8px; overflow: hidden; border-radius: 999px; background: rgba(27,36,40,0.12); }}
+    .todo-progress-fill {{ height: 100%; border-radius: inherit; background: #007c9d; }}
+    .todo.done .todo-progress-fill {{ background: #2f8b57; }}
+    .todo-progress-label {{ color: var(--muted); font-size: 0.72rem; white-space: nowrap; }}
     .todo-meta {{ color: var(--muted); font-size: 0.72rem; white-space: nowrap; }}
     .todo-empty {{ color: var(--muted); font-size: 0.85rem; }}
     .feed {{ display: grid; gap: 10px; transition: opacity 180ms ease, transform 180ms ease; }}
@@ -817,7 +840,17 @@ def day_shell(day: str) -> str:
                 <article class="todo ${{todo.status}} ${{todo.tier}}">
                   <span class="todo-status">${{escapeHtml(todo.status)}}</span>
                   <span class="todo-tier">${{escapeHtml(todo.tier)}}</span>
-                  <div class="todo-text">${{escapeHtml(todo.text)}}</div>
+                  <div class="todo-body">
+                    <div class="todo-text">${{escapeHtml(todo.text)}}</div>
+                    ${{todo.progress ? `
+                      <div class="todo-progress" title="${{escapeHtml(todo.progress.current + ' of ' + todo.progress.total)}}">
+                        <div class="todo-progress-track" role="progressbar" aria-valuemin="0" aria-valuemax="${{todo.progress.total}}" aria-valuenow="${{todo.progress.current}}">
+                          <div class="todo-progress-fill" style="width:${{todo.progress.percent}}%"></div>
+                        </div>
+                        <span class="todo-progress-label">${{escapeHtml(todo.progress.label || (todo.progress.current + ' / ' + todo.progress.total))}} · ${{todo.progress.percent}}%</span>
+                      </div>
+                    ` : ''}}
+                  </div>
                   <div class="todo-meta">${{escapeHtml(todo.done_day || todo.updated_day || '')}}</div>
                 </article>
               `).join('')

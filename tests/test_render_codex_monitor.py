@@ -15,6 +15,26 @@ SPEC.loader.exec_module(MODULE)
 
 
 class RenderCodexMonitorTest(unittest.TestCase):
+    def test_load_todos_normalizes_progress(self):
+        with tempfile.TemporaryDirectory() as directory:
+            original = MODULE.TODO_FILE
+            MODULE.TODO_FILE = Path(directory) / "todo.json"
+            MODULE.TODO_FILE.write_text(json.dumps({"items": [{
+                "id": "archive",
+                "text": "Index archive",
+                "status": "started",
+                "progress": {"current": 18, "total": 390, "label": "18 of 390 articles"},
+            }]}))
+            try:
+                todos = MODULE.load_todos("2026-08-17")
+            finally:
+                MODULE.TODO_FILE = original
+
+        self.assertEqual(
+            {"current": 18, "total": 390, "percent": 4.6, "label": "18 of 390 articles"},
+            todos[0]["progress"],
+        )
+
     def test_recent_rollout_starts_at_preceding_user_turn(self):
         old_user = {"timestamp": "2026-07-15T21:00:00Z", "payload": {"type": "user_message"}}
         old_output = {"timestamp": "2026-07-15T21:01:00Z", "payload": {"type": "agent_message"}}
