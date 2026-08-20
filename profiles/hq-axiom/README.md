@@ -12,5 +12,6 @@ Examples that still belong on the HQ side instead of in the shared core:
 The current shared repo now includes one concrete example profile file here:
 
 - `mail-filter-domains.txt`
+- `new-bot.md`, an HQ operator runbook for provisioning another isolated bot
 
 That keeps the default shared mail filter permissive unless configured, while still making the HQ allowlist explicit and reusable as profile state rather than script-local code.

@@ -30,6 +30,7 @@ class ReplyParentGuardTest(unittest.TestCase):
             from_header="Assistant <assistant@example.com>",
             envelope_from="assistant@example.com",
             reply_to=None,
+            signature=None,
             in_reply_to=None,
             references=None,
         )
@@ -55,6 +56,22 @@ class ReplyParentGuardTest(unittest.TestCase):
             self.module.render_with_pandoc = lambda text, _format: text
             with self.assertRaisesRegex(SystemExit, "Reply message mismatch"):
                 self.module.build_message(self.args(mail, "<expected@example.com>"), "Reply")
+
+    def test_signature_is_plain_and_subtle_html(self):
+        args = self.args(None, "")
+        args.to = "person@example.com"
+        args.subject = "Test"
+        args.signature = "R. Axiom, AI employee."
+        self.module.render_with_pandoc = lambda text, output_format: (
+            "<p>Body</p>" if output_format == "html5" else "Body"
+        )
+
+        message = self.module.build_message(args, "Body")
+        plain = message.get_body(preferencelist=("plain",)).get_content()
+        rich = message.get_body(preferencelist=("html",)).get_content()
+        self.assertIn("Body\n\n---\nR. Axiom, AI employee.", plain)
+        self.assertIn("color:#777", rich)
+        self.assertIn("R. Axiom, AI employee.", rich)
 
 
 if __name__ == "__main__":

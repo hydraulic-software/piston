@@ -3,6 +3,7 @@
 import argparse
 import email
 import email.policy
+import html
 import os
 import shutil
 import subprocess
@@ -13,6 +14,7 @@ from pathlib import Path
 
 DEFAULT_FROM = os.environ.get("BOT_MAIL_FROM", "Assistant <assistant@localhost>")
 DEFAULT_ENVELOPE_FROM = os.environ.get("BOT_ENVELOPE_FROM", "assistant@localhost")
+DEFAULT_SIGNATURE = os.environ.get("BOT_MAIL_SIGNATURE", "")
 SENDMAIL = os.environ.get("BOT_SENDMAIL", "/usr/sbin/sendmail")
 
 
@@ -31,6 +33,11 @@ def parse_args():
     parser.add_argument("--from-header", default=DEFAULT_FROM, help="From header value")
     parser.add_argument("--envelope-from", default=DEFAULT_ENVELOPE_FROM, help="SMTP envelope sender")
     parser.add_argument("--reply-to", help="Optional Reply-To header value")
+    parser.add_argument(
+        "--signature",
+        default=DEFAULT_SIGNATURE,
+        help="Optional plain-text signature appended to both MIME alternatives",
+    )
     parser.add_argument("--in-reply-to", help="Optional In-Reply-To header value")
     parser.add_argument("--references", help="Optional References header value")
     parser.add_argument("--dry-run", action="store_true", help="Write the rendered MIME message to stdout instead of sending")
@@ -79,6 +86,14 @@ def reply_context(reply_mail: Path) -> dict[str, str]:
 def build_message(args, markdown_text: str) -> EmailMessage:
     html_body = render_with_pandoc(markdown_text, "html5")
     plain_body = render_with_pandoc(markdown_text, "plain")
+    signature = args.signature.strip() if args.signature else ""
+    if signature:
+        plain_body += f"\n\n---\n{signature}"
+        html_signature = html.escape(signature).replace("\n", "<br>\n")
+        html_body += (
+            '\n<hr style="border:0;border-top:1px solid #d6d6d6;margin:1.4em 0 .7em">\n'
+            f'<p style="color:#777;font-size:0.9em;margin:0">{html_signature}</p>'
+        )
 
     reply_values = reply_context(args.reply_mail) if args.reply_mail else {}
     if args.expect_reply_message_id:
