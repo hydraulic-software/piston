@@ -63,7 +63,27 @@ authentication, and an `AGENTS.md` that states the bot's mandate and boundaries.
 Do not reuse Axiom's live state database, notes, Maildir, Codex session, or
 automation lock.
 
-## 5. Validate Before Enabling Wakeups
+## 5. Create Bot-Owned Repositories
+
+HQ Gitolite allows each account to create repositories below its own username.
+The first push to a nonexistent `BOT_ACCOUNT/NAME` repository creates it:
+
+```bash
+git init -b master NAME
+cd NAME
+printf '# NAME\n' > README.md
+git add README.md
+git commit -m 'Initial commit'
+git remote add origin git@hq.hydraulic.software:BOT_ACCOUNT/NAME.git
+git push -u origin master
+```
+
+Bot-owned repositories are readable by other HQ users. Publish review work as
+`rr/BOT_ACCOUNT/CHANGE` in the bot-owned repository and send the branch name and
+commit to the reviewer. Do not assume a same-named repository exists below the
+reviewer's username.
+
+## 6. Validate Before Enabling Wakeups
 
 Validate each boundary independently:
 
@@ -78,7 +98,7 @@ Validate each boundary independently:
 
 Only then enable the user timers and mail path described in the portable guide.
 
-## 6. First-Week Operation
+## 7. First-Week Operation
 
 Keep the initial mandate narrow, review outbound communication, and inspect the
 monitor daily. Back up durable notes and configuration, but not transient locks
