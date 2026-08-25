@@ -17,6 +17,13 @@ render_recent() {
     last_full_render_day=$today
   else
     "${HOME}/.local/bin/axiom-render-codex-monitor" --recent
+    # The first full render after midnight can run before the first new-day
+    # turn exists. A later incremental render then creates today's page but
+    # normally leaves the index untouched, hiding that page until restart.
+    if [[ -f "${HOME}/private_html/${today}.html" ]] &&
+       ! grep -Fq "href=\"${today}.html\"" "${HOME}/private_html/index.html"; then
+      render
+    fi
   fi
 }
 
