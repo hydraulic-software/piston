@@ -14,4 +14,6 @@ The current shared repo now includes one concrete example profile file here:
 - `mail-filter-domains.txt`
 - `new-bot.md`, an HQ operator runbook for provisioning another isolated bot
 
-That keeps the default shared mail filter permissive unless configured, while still making the HQ allowlist explicit and reusable as profile state rather than script-local code.
+That keeps the default shared mail filter permissive unless configured. The HQ
+profile is intentionally empty as well, so Axiom can receive mail from the
+wider internet while outbound interaction remains controlled by local policy.

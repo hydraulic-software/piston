@@ -1,4 +1,1 @@
-# Allowed sender domains for the HQ Axiom account.
-hydraulic.software
-hydraulic.dev
-hq.hydraulic.software
+# An empty allowlist accepts mail from all sender domains.
