@@ -9,6 +9,8 @@
 # Sender identity used by axiom-send-markdown-mail.
 BOT_MAIL_FROM="Assistant <assistant@example.com>"
 BOT_ENVELOPE_FROM=assistant@example.com
+# Optional disclosure appended as a subtle HTML footer and plain-text signature.
+# BOT_MAIL_SIGNATURE="R. Example, AI employee."
 
 # Optional overrides.
 # BOT_SENDMAIL=/usr/sbin/sendmail
