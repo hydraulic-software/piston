@@ -35,6 +35,16 @@ bin/axiom-send-markdown-mail \
   --markdown-file /tmp/body.md
 ```
 
+Attach one or more files without losing either body alternative:
+
+```bash
+bin/axiom-send-markdown-mail \
+  --reply-mail "$HOME/Maildir/new/<message-file>" \
+  --expect-reply-message-id '<message-id-copied-when-reading>' \
+  --markdown-file /tmp/body.md \
+  --attach /tmp/form.pdf
+```
+
 In reply mode the helper derives:
 
 - `To` from `Reply-To` or `From`
@@ -50,7 +60,8 @@ In reply mode the helper derives:
 4. Retain that exact path from the read step; do not rediscover "the newest mail" immediately before sending.
 5. Pass `--expect-reply-message-id` for an end-to-end guard against a new message becoming the reply parent.
 6. Confirm the current process has the instance's `BOT_MAIL_FROM` and `BOT_ENVELOPE_FROM` values. If it does not, source the instance environment file or pass the identity explicitly; never use generic development defaults for a real send.
-7. If you want to inspect the exact MIME before sending, add `--dry-run`.
+7. Use repeatable `--attach` arguments for attachments. Do not fall back to GNU `mail`; its MIME option ordering is easy to misuse and can silently drop the body or filename.
+8. If you want to inspect the exact MIME before sending, add `--dry-run`.
 
 ## Notes
 

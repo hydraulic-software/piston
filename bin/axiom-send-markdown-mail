@@ -3,6 +3,7 @@
 import argparse
 import email
 import email.policy
+import mimetypes
 import os
 import shutil
 import subprocess
@@ -23,6 +24,14 @@ def parse_args():
     parser.add_argument("--to", help="Recipient email address")
     parser.add_argument("--subject", help="Message subject")
     parser.add_argument("--markdown-file", type=Path, help="Path to Markdown body file")
+    parser.add_argument(
+        "--attach",
+        action="append",
+        type=Path,
+        default=[],
+        metavar="FILE",
+        help="Attach a named file; may be repeated",
+    )
     parser.add_argument("--reply-mail", type=Path, help="Existing RFC822 mail file to reply to")
     parser.add_argument(
         "--expect-reply-message-id",
@@ -113,6 +122,19 @@ def build_message(args, markdown_text: str) -> EmailMessage:
 
     msg.set_content(plain_body, subtype="plain", charset="utf-8")
     msg.add_alternative(html_body, subtype="html", charset="utf-8")
+    for attachment in getattr(args, "attach", []):
+        if not attachment.is_file():
+            raise SystemExit(f"Attachment is not a regular file: {attachment}")
+        content_type, encoding = mimetypes.guess_type(attachment.name)
+        if encoding or not content_type:
+            content_type = "application/octet-stream"
+        maintype, subtype = content_type.split("/", 1)
+        msg.add_attachment(
+            attachment.read_bytes(),
+            maintype=maintype,
+            subtype=subtype,
+            filename=attachment.name,
+        )
     return msg
 
 

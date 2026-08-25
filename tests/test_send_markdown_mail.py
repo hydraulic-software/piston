@@ -1,4 +1,6 @@
 import argparse
+import email
+import email.policy
 import importlib.machinery
 import importlib.util
 import tempfile
@@ -32,6 +34,7 @@ class ReplyParentGuardTest(unittest.TestCase):
             reply_to=None,
             in_reply_to=None,
             references=None,
+            attach=[],
         )
 
     def test_expected_message_id_accepts_the_intended_parent(self):
@@ -55,6 +58,50 @@ class ReplyParentGuardTest(unittest.TestCase):
             self.module.render_with_pandoc = lambda text, _format: text
             with self.assertRaisesRegex(SystemExit, "Reply message mismatch"):
                 self.module.build_message(self.args(mail, "<expected@example.com>"), "Reply")
+
+
+class AttachmentTest(unittest.TestCase):
+    def setUp(self):
+        self.module = load_script()
+        self.module.render_with_pandoc = lambda text, output_format: (
+            f"<p>{text}</p>" if output_format == "html5" else text
+        )
+
+    def args(self, attachments):
+        return argparse.Namespace(
+            to="person@example.com",
+            subject="Attached form",
+            reply_mail=None,
+            expect_reply_message_id=None,
+            from_header="Assistant <assistant@example.com>",
+            envelope_from="assistant@example.com",
+            reply_to=None,
+            in_reply_to=None,
+            references=None,
+            attach=attachments,
+        )
+
+    def test_named_attachment_preserves_both_body_alternatives(self):
+        with tempfile.TemporaryDirectory() as directory:
+            attachment = Path(directory) / "signed form.pdf"
+            attachment.write_bytes(b"%PDF-test")
+
+            message = self.module.build_message(self.args([attachment]), "Please sign this form.")
+            reparsed = email.message_from_bytes(message.as_bytes(), policy=email.policy.default)
+
+            self.assertEqual(reparsed.get_body(preferencelist=("plain",)).get_content().strip(), "Please sign this form.")
+            self.assertEqual(reparsed.get_body(preferencelist=("html",)).get_content().strip(), "<p>Please sign this form.</p>")
+            parts = list(reparsed.iter_attachments())
+            self.assertEqual(len(parts), 1)
+            self.assertEqual(parts[0].get_filename(), "signed form.pdf")
+            self.assertEqual(parts[0].get_content_type(), "application/pdf")
+            self.assertEqual(parts[0].get_payload(decode=True), b"%PDF-test")
+
+    def test_missing_attachment_is_rejected_before_send(self):
+        with tempfile.TemporaryDirectory() as directory:
+            missing = Path(directory) / "missing.pdf"
+            with self.assertRaisesRegex(SystemExit, "Attachment is not a regular file"):
+                self.module.build_message(self.args([missing]), "Body")
 
 
 if __name__ == "__main__":

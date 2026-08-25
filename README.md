@@ -30,7 +30,7 @@ Copy mode is recommended for a first evaluation. Once the setup is understood, [
 - `bin/axiom-mail-filter`: optional sender-domain filter that delivers RFC822 messages into Maildir
 - `bin/axiom-render-codex-monitor` and `bin/axiom-watch-codex-monitor`: private activity pages with incremental refreshes
 - `bin/axiom-todo`: small JSON-backed rolling todo board
-- `bin/axiom-send-markdown-mail`: multipart plain-text/HTML mail with reply threading
+- `bin/axiom-send-markdown-mail`: multipart plain-text/HTML mail with reply threading and named attachments
 - `bin/axiom-teamcity-watch`: TeamCity build polling and log tails
 - `bin/axiom-review-followup`: opinionated review-worktree/TeamCity follow-up helper
 - `bin/axiom-update-codex`: staged, exact-version Codex CLI upgrades
