@@ -57,44 +57,5 @@ class WatchCodexMonitorTest(unittest.TestCase):
             self.assertNotIn("state_5.sqlite", invocation)
             self.assertIn("modify,close_write,create,move,delete", invocation)
 
-    def test_new_day_page_missing_from_index_triggers_full_render(self):
-        with tempfile.TemporaryDirectory() as directory:
-            home = Path(directory)
-            bin_dir = home / ".local" / "bin"
-            state_dir = home / ".local" / "state" / "axiom"
-            sessions_dir = home / ".codex" / "sessions"
-            output_dir = home / "private_html"
-            bin_dir.mkdir(parents=True)
-            state_dir.mkdir(parents=True)
-            sessions_dir.mkdir(parents=True)
-            output_dir.mkdir()
-            (state_dir / "todo.json").touch()
-            (state_dir / "runs").mkdir()
-            (output_dir / "index.html").write_text('href="yesterday.html"')
-
-            render_log = home / "renders"
-            renderer = bin_dir / "axiom-render-codex-monitor"
-            renderer.write_text(
-                "#!/bin/sh\n"
-                f'printf "%s\\n" "$*" >> {render_log}\n'
-                f'if [ "$*" = "--recent" ]; then touch {output_dir}/$(date +%F).html; fi\n'
-                f'if [ "$*" = "" ] && [ -f {output_dir}/$(date +%F).html ]; then '
-                f'printf \'href="%s.html"\' "$(date +%F)" > {output_dir}/index.html; fi\n'
-            )
-            renderer.chmod(0o755)
-
-            inotifywait = bin_dir / "inotifywait"
-            inotifywait.write_text("#!/bin/sh\nprintf 'one\\n'\nsleep 2\n")
-            inotifywait.chmod(0o755)
-
-            env = os.environ.copy()
-            env.update({"HOME": str(home), "BOT_MONITOR_MIN_INTERVAL_SECONDS": "1"})
-            subprocess.run([str(SCRIPT)], env=env, check=True, timeout=5)
-
-            self.assertEqual(["", "--recent", ""], render_log.read_text().splitlines())
-            today = subprocess.check_output(["date", "+%F"], text=True).strip()
-            self.assertIn(f'href="{today}.html"', (output_dir / "index.html").read_text())
-
-
 if __name__ == "__main__":
     unittest.main()

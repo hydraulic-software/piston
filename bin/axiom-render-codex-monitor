@@ -627,24 +627,43 @@ def build_days(since: dt.datetime | None = None) -> list[dict]:
     return days
 
 
-def write_index(days: list[dict]) -> None:
-    cards = []
-    for day in days:
-        link = f"{day['day']}.html"
-        cards.append(
-            f"""
-            <a class="day-card" href="{link}">
-              <div class="day-line">
-                <strong>{day['day']}</strong>
-                <span>{len(day['wakeups'])} wakeups</span>
-              </div>
-              <div class="timeline">
-                {''.join(f'<span class="segment {seg["kind"]} shade-{seg["shade"]}" style="left:{seg["left"]:.3f}%;width:{seg["width"]:.3f}%"></span>' for seg in day['segments'])}
-              </div>
-            </a>
-            """
-        )
+def index_day(day: dict) -> dict:
+    return {
+        "day": day["day"],
+        "wakeup_count": len(day["wakeups"]),
+        "segments": [
+            {key: segment[key] for key in ("left", "width", "kind", "shade")}
+            for segment in day["segments"]
+        ],
+    }
 
+
+def write_index_data(days: list[dict]) -> None:
+    payload = {
+        "generated_at": dt.datetime.now().astimezone().strftime("%Y-%m-%d %H:%M:%S %Z"),
+        "days": [index_day(day) for day in days],
+    }
+    (OUTPUT_DIR / "index.json").write_text(json.dumps(payload, indent=2, ensure_ascii=False))
+
+
+def update_index_data(changed_days: list[dict]) -> bool:
+    index_path = OUTPUT_DIR / "index.json"
+    if not index_path.exists():
+        return False
+    try:
+        payload = json.loads(index_path.read_text())
+        existing = {day["day"]: day for day in payload["days"]}
+    except (json.JSONDecodeError, KeyError, TypeError):
+        return False
+    existing.update((day["day"], index_day(day)) for day in changed_days)
+    payload["generated_at"] = dt.datetime.now().astimezone().strftime("%Y-%m-%d %H:%M:%S %Z")
+    payload["days"] = [existing[day] for day in sorted(existing, reverse=True)]
+    index_path.write_text(json.dumps(payload, indent=2, ensure_ascii=False))
+    return True
+
+
+def write_index(days: list[dict]) -> None:
+    write_index_data(days)
     html = f"""<!doctype html>
 <html lang="en">
 <head>
@@ -669,9 +688,45 @@ def write_index(days: list[dict]) -> None:
 </head>
 <body>
   <div class="topbar">Axiom Monitor index</div>
-  <main class="wrap">
-    {''.join(cards)}
-  </main>
+  <main id="days" class="wrap"></main>
+  <script>
+    const daysEl = document.getElementById('days');
+    let signature = '';
+
+    function escapeHtml(text) {{
+      return text
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;');
+    }}
+
+    function renderDay(day) {{
+      const segments = day.segments.map(segment =>
+        `<span class="segment ${{escapeHtml(segment.kind)}} shade-${{segment.shade}}" ` +
+        `style="left:${{segment.left.toFixed(3)}}%;width:${{segment.width.toFixed(3)}}%"></span>`
+      ).join('');
+      return `<a class="day-card" href="${{escapeHtml(day.day)}}.html">
+        <div class="day-line">
+          <strong>${{escapeHtml(day.day)}}</strong>
+          <span>${{day.wakeup_count}} wakeups</span>
+        </div>
+        <div class="timeline">${{segments}}</div>
+      </a>`;
+    }}
+
+    async function refresh() {{
+      const response = await fetch('./index.json?ts=' + Date.now(), {{ cache: 'no-store' }});
+      const data = await response.json();
+      const nextSignature = JSON.stringify([data.generated_at, data.days.length]);
+      if (nextSignature === signature) return;
+      signature = nextSignature;
+      daysEl.innerHTML = data.days.map(renderDay).join('');
+    }}
+
+    refresh();
+    setInterval(refresh, 5000);
+  </script>
 </body>
 </html>
 """
@@ -963,7 +1018,7 @@ def write_day(day: dict) -> None:
 
 
 def cleanup(days: list[dict]) -> None:
-    keep = {"index.html", FAVICON_NAME}
+    keep = {"index.html", "index.json", FAVICON_NAME}
     for day in days:
         keep.add(f"{day['day']}.html")
         keep.add(f"{day['day']}.json")
@@ -992,6 +1047,13 @@ def main() -> None:
         for day in current_days:
             if day["day"] == local_midnight.strftime("%Y-%m-%d"):
                 write_day(day)
+        if not update_index_data(current_days):
+            write_favicon()
+            days = build_days()
+            write_index(days)
+            for day in days:
+                write_day(day)
+            cleanup(days)
         return
 
     write_favicon()

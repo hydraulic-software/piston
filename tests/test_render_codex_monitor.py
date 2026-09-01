@@ -15,6 +15,29 @@ SPEC.loader.exec_module(MODULE)
 
 
 class RenderCodexMonitorTest(unittest.TestCase):
+    def test_recent_index_update_replaces_today_without_dropping_history(self):
+        yesterday = {"day": "2026-08-31", "wakeups": [1], "segments": []}
+        today = {"day": "2026-09-01", "wakeups": [1], "segments": []}
+        refreshed_today = {
+            "day": "2026-09-01",
+            "wakeups": [1, 2],
+            "segments": [{"left": 10.0, "width": 1.0, "kind": "mail", "shade": 0}],
+        }
+
+        with tempfile.TemporaryDirectory() as directory:
+            old_output_dir = MODULE.OUTPUT_DIR
+            MODULE.OUTPUT_DIR = Path(directory)
+            try:
+                MODULE.write_index_data([today, yesterday])
+                self.assertTrue(MODULE.update_index_data([refreshed_today]))
+                payload = json.loads((Path(directory) / "index.json").read_text())
+            finally:
+                MODULE.OUTPUT_DIR = old_output_dir
+
+        self.assertEqual(["2026-09-01", "2026-08-31"], [day["day"] for day in payload["days"]])
+        self.assertEqual(2, payload["days"][0]["wakeup_count"])
+        self.assertEqual(1, len(payload["days"][0]["segments"]))
+
     def test_load_todos_normalizes_progress(self):
         with tempfile.TemporaryDirectory() as directory:
             original = MODULE.TODO_FILE
