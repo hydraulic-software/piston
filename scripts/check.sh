@@ -23,6 +23,7 @@ echo "[3/5] Installer shell syntax"
 bash -n "$REPO_ROOT/bin/axiom-codex-runner"
 bash -n "$REPO_ROOT/bin/axiom-update-codex"
 bash -n "$REPO_ROOT/bin/axiom-watch-codex-monitor"
+bash -n "$REPO_ROOT/bin/axiom-watch-mail"
 bash -n "$REPO_ROOT/scripts/install-local.sh"
 bash -n "$REPO_ROOT/scripts/update-local.sh"
 bash -n "$REPO_ROOT/scripts/uninstall-local.sh"
@@ -42,7 +43,7 @@ mkdir -p "$tmpdir/home" "$tmpdir/home/.config/systemd/user"
 CODEX_HOME="$tmpdir/codex" HOME="$tmpdir/home" \
   "$REPO_ROOT/scripts/install-local.sh" --systemd >/dev/null
 
-for helper in axiom-autonomy-scheduler axiom-backfill-codex-summaries axiom-codex-runner axiom-mail-context axiom-mail-filter axiom-render-codex-monitor axiom-review-followup axiom-send-markdown-mail axiom-teamcity-watch axiom-todo axiom-update-codex axiom-watch-codex-monitor; do
+for helper in axiom-autonomy-scheduler axiom-backfill-codex-summaries axiom-codex-runner axiom-mail-context axiom-mail-filter axiom-render-codex-monitor axiom-review-followup axiom-send-markdown-mail axiom-teamcity-watch axiom-todo axiom-update-codex axiom-watch-codex-monitor axiom-watch-mail; do
   target="$tmpdir/home/.local/bin/$helper"
   if [[ ! -e "$target" ]]; then
     echo "missing installed helper: $target" >&2
@@ -66,7 +67,7 @@ done
 CODEX_HOME="$tmpdir/codex" HOME="$tmpdir/home" \
   "$REPO_ROOT/scripts/uninstall-local.sh" >/dev/null
 
-for helper in axiom-autonomy-scheduler axiom-backfill-codex-summaries axiom-codex-runner axiom-mail-context axiom-mail-filter axiom-render-codex-monitor axiom-review-followup axiom-send-markdown-mail axiom-teamcity-watch axiom-todo axiom-update-codex axiom-watch-codex-monitor; do
+for helper in axiom-autonomy-scheduler axiom-backfill-codex-summaries axiom-codex-runner axiom-mail-context axiom-mail-filter axiom-render-codex-monitor axiom-review-followup axiom-send-markdown-mail axiom-teamcity-watch axiom-todo axiom-update-codex axiom-watch-codex-monitor axiom-watch-mail; do
   target="$tmpdir/home/.local/bin/$helper"
   if [[ -e "$target" || -L "$target" ]]; then
     echo "helper still present after uninstall: $target" >&2
@@ -100,7 +101,7 @@ if [[ ! -L "$tmpdir2/store/current" ]]; then
   exit 1
 fi
 
-for helper in axiom-autonomy-scheduler axiom-backfill-codex-summaries axiom-codex-runner axiom-mail-context axiom-mail-filter axiom-render-codex-monitor axiom-review-followup axiom-send-markdown-mail axiom-teamcity-watch axiom-todo axiom-update-codex axiom-watch-codex-monitor; do
+for helper in axiom-autonomy-scheduler axiom-backfill-codex-summaries axiom-codex-runner axiom-mail-context axiom-mail-filter axiom-render-codex-monitor axiom-review-followup axiom-send-markdown-mail axiom-teamcity-watch axiom-todo axiom-update-codex axiom-watch-codex-monitor axiom-watch-mail; do
   target="$tmpdir2/home/.local/bin/$helper"
   if [[ ! -L "$target" ]]; then
     echo "managed helper is not a symlink: $target" >&2

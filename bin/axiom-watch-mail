@@ -1,0 +1,26 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+export HOME="${HOME:-$(cd ~ && pwd)}"
+export PATH="${HOME}/.local/bin:/usr/local/bin:/usr/bin:/bin"
+
+maildir="${HOME}/Maildir/new"
+runner="${HOME}/.local/bin/axiom-codex-runner"
+mkdir -p "${maildir}"
+
+run_if_pending() {
+  if find "${maildir}" -maxdepth 1 -type f -print -quit | grep -q .; then
+    "${runner}" mail
+  fi
+}
+
+# Establish the watch before inspecting the existing inbox. Events arriving
+# during a Codex run remain buffered in this pipe and are handled serially
+# after the runner releases its lock.
+coproc MAIL_EVENTS { inotifywait -m -e close_write,moved_to,create "${maildir}"; }
+exec 3<&"${MAIL_EVENTS[0]}"
+
+run_if_pending
+while read -r _ <&3; do
+  run_if_pending
+done
