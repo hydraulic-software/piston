@@ -53,8 +53,8 @@ scripts/update-local.sh --systemd
 
 That does **not** point your live entrypoints at the repo working tree. Instead it:
 
-- copies the current repo slice into `~/.local/share/bot-tools/releases/<id>`
-- atomically repoints `~/.local/share/bot-tools/current`
+- copies the current repo slice into `~/.local/share/piston/releases/<id>`
+- atomically repoints `~/.local/share/piston/current`
 - refreshes the stable links in `~/.local/bin`, `${CODEX_HOME:-~/.codex}/skills`, and optionally `~/.config/systemd/user`
 
 This is the safer path for shell-heavy tooling because the running system sees a stable installed snapshot rather than a repo checkout that might change mid-interpretation.
@@ -80,7 +80,13 @@ This repo now includes a Linux automation slice and a reusable monitor slice too
 - the TeamCity helper expects both `TEAMCITY_BASE_URL` and `TEAMCITY_API_KEY` (or an explicit `--base-url`)
 - inbound mail delivery and web serving are host responsibilities and are not configured by the installer
 
-The example user services optionally load `~/.config/bot-tools/environment`. Start from `config/environment.example`, keep credentials out of the repository, and set the installed file to mode `0600`.
+The example user services optionally load `~/.config/piston/environment`. Start from `config/environment.example`, keep credentials out of the repository, and set the installed file to mode `0600`.
+
+## Upgrading from the Axiom-prefixed release
+
+The installer and managed updater create `axiom-*` helper and systemd-unit aliases that point at the canonical `piston-*` names. Existing enabled units therefore continue to work while they are migrated. Piston units read the legacy `~/.config/bot-tools/environment` first and the canonical `~/.config/piston/environment` second, so a new file can override the old configuration incrementally.
+
+Runtime state now defaults to `~/.local/state/piston`. Before upgrading an existing deployment, either move its state there, make that path a symlink to the legacy state directory, or set the relevant `BOT_*` state-path variables explicitly. Once callers, enabled units, and configuration have moved to Piston, the compatibility aliases may be removed in a later release.
 
 ## Validation
 

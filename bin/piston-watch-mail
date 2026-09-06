@@ -5,7 +5,7 @@ export HOME="${HOME:-$(cd ~ && pwd)}"
 export PATH="${HOME}/.local/bin:/usr/local/bin:/usr/bin:/bin"
 
 maildir="${HOME}/Maildir/new"
-runner="${HOME}/.local/bin/axiom-codex-runner"
+runner="${HOME}/.local/bin/piston-codex-runner"
 mkdir -p "${maildir}"
 
 run_if_pending() {

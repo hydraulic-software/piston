@@ -36,7 +36,7 @@ Maildir. Configure the visible sender name with its robot prefix. Ensure outboun
 mail is covered by Hydraulic's SPF/DKIM setup, then verify that a real received
 message passes aligned DKIM before enabling mail-triggered automation.
 
-The account-local bot-tools environment should contain values like:
+The account-local piston environment should contain values like:
 
 ```ini
 BOT_MAIL_FROM="R. Example <example@hq.hydraulic.software>"
@@ -48,9 +48,9 @@ BOT_AUTH_RESULTS_ID=hq.hydraulic.software
 
 Keep that file mode `0600`. Never commit credentials or tokens.
 
-## 4. Install And Configure Bot Tools
+## 4. Install And Configure Piston
 
-Log in as the bot, clone the reviewed bot-tools branch, and follow the portable
+Log in as the bot, clone the reviewed piston branch, and follow the portable
 getting-started guide. Use the managed release installer after checks pass:
 
 ```bash
@@ -63,7 +63,7 @@ authentication, and an `AGENTS.md` that states the bot's mandate and boundaries.
 Do not reuse Axiom's live state database, notes, Maildir, Codex session, or
 automation lock.
 
-Start the account with only reusable skills installed by Bot Tools. Add local
+Start the account with only reusable skills installed by Piston. Add local
 workflow skills after the procedure has repeated and its guardrails are known;
 do not copy Axiom's entire skill directory, which contains account- and
 project-specific assumptions.
@@ -100,7 +100,7 @@ Validate each boundary independently:
 4. run timer, nightly, and mail modes manually and inspect their transcripts
 5. confirm the monitor is private and requires HQ authentication
 6. confirm the bot cannot access repositories or credentials outside its scope
-7. run `systemd-analyze --user verify` over the installed Bot Tools units
+7. run `systemd-analyze --user verify` over the installed Piston units
 
 Only then enable the user timers and mail path described in the portable guide.
 

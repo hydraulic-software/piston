@@ -5,7 +5,7 @@ from pathlib import Path
 import unittest
 
 
-FILTER_PATH = Path(__file__).parents[1] / "bin" / "axiom-mail-filter"
+FILTER_PATH = Path(__file__).parents[1] / "bin" / "piston-mail-filter"
 
 
 def load_filter():

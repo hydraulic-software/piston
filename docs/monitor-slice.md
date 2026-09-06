@@ -2,9 +2,9 @@
 
 This repo now includes the reusable monitor layer that was originally developed on HQ:
 
-- `bin/axiom-render-codex-monitor`
-- `bin/axiom-watch-codex-monitor`
-- `systemd/user/axiom-codex-monitor.service`
+- `bin/piston-render-codex-monitor`
+- `bin/piston-watch-codex-monitor`
+- `systemd/user/piston-codex-monitor.service`
 
 ## What it does
 
@@ -33,7 +33,7 @@ This repo now includes the reusable monitor layer that was originally developed 
 
 The shared runner now writes those sidecars as:
 
-- `~/.local/state/axiom/runs/<timestamp>-<mode>.summary.json`
+- `~/.local/state/piston/runs/<timestamp>-<mode>.summary.json`
 
 That gives the monitor a structured `headline` source instead of relying only on rollout heuristics.
 

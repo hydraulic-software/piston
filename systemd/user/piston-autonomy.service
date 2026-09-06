@@ -5,4 +5,5 @@ Description=Periodic autonomous Codex wakeup
 Type=oneshot
 WorkingDirectory=%h
 EnvironmentFile=-%h/.config/bot-tools/environment
-ExecStart=%h/.local/bin/axiom-codex-runner timer
+EnvironmentFile=-%h/.config/piston/environment
+ExecStart=%h/.local/bin/piston-codex-runner timer

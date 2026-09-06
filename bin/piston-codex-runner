@@ -28,7 +28,7 @@ export USER="${USER:-$(id -un)}"
 export PATH="${HOME}/.local/bin:/usr/local/bin:/usr/bin:/bin"
 umask 022
 
-lock_dir="${HOME}/.local/state/axiom"
+lock_dir="${HOME}/.local/state/piston"
 mkdir -p "${lock_dir}"
 lock_file="${lock_dir}/codex.lock"
 run_log_dir="${lock_dir}/runs"
@@ -44,7 +44,7 @@ flock 9
 log "acquired lock"
 
 if [[ "${mode}" == "mail" ]]; then
-  mail_context_helper="${HOME}/.local/bin/axiom-mail-context"
+  mail_context_helper="${HOME}/.local/bin/piston-mail-context"
   if [[ -x "${mail_context_helper}" ]]; then
     mail_context="$("${mail_context_helper}")"
     prompt+=$'\n\nMail wakeup context:\n'"${mail_context}"
@@ -70,7 +70,7 @@ timestamp="$(date +%Y%m%dT%H%M%S)"
 message_file="${run_log_dir}/${timestamp}-${mode}.last-message.txt"
 transcript_file="${run_log_dir}/${timestamp}-${mode}.transcript.txt"
 summary_file="${run_log_dir}/${timestamp}-${mode}.summary.json"
-schedule_helper="${HOME}/.local/bin/axiom-autonomy-scheduler"
+schedule_helper="${HOME}/.local/bin/piston-autonomy-scheduler"
 
 summarize_last_message() {
   if [[ -s "${message_file}" ]]; then
@@ -127,7 +127,7 @@ PY
 }
 
 if [[ "${mode}" == "nightly" ]]; then
-  summary_helper="${HOME}/.local/bin/axiom-nightly-summary"
+  summary_helper="${HOME}/.local/bin/piston-nightly-summary"
   if [[ -x "${summary_helper}" ]]; then
     nightly_summary="$("${summary_helper}" --limit-notes 6 2>/dev/null || true)"
     if [[ -n "${nightly_summary}" ]]; then

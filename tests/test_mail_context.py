@@ -6,7 +6,7 @@ import unittest
 from pathlib import Path
 
 
-SCRIPT = Path(__file__).parents[1] / "bin" / "axiom-mail-context"
+SCRIPT = Path(__file__).parents[1] / "bin" / "piston-mail-context"
 
 
 def load_script():

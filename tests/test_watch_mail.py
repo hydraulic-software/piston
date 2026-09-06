@@ -5,7 +5,7 @@ import unittest
 from pathlib import Path
 
 
-SCRIPT = Path(__file__).parents[1] / "bin" / "axiom-watch-mail"
+SCRIPT = Path(__file__).parents[1] / "bin" / "piston-watch-mail"
 
 
 class WatchMailTest(unittest.TestCase):
@@ -18,7 +18,7 @@ class WatchMailTest(unittest.TestCase):
             maildir.mkdir(parents=True)
             (maildir / "first").touch()
 
-            runner = bin_dir / "axiom-codex-runner"
+            runner = bin_dir / "piston-codex-runner"
             runner.write_text(
                 "#!/bin/sh\n"
                 f'printf "%s\\n" "$*" >> {home / "runs"}\n'

@@ -1,6 +1,6 @@
 ---
 name: markdown-email
-description: Use when sending or replying to email from the current bot account and you want reliable formatting. Converts Markdown into multipart plain-text + HTML mail with the companion `axiom-send-markdown-mail` helper, and can auto-thread replies from a Maildir message file.
+description: Use when sending or replying to email from the current bot account and you want reliable formatting. Converts Markdown into multipart plain-text + HTML mail with the companion `piston-send-markdown-mail` helper, and can auto-thread replies from a Maildir message file.
 ---
 
 # Markdown Email
@@ -9,7 +9,7 @@ Use this skill when composing email from the current bot account and the message
 
 ## Helper
 
-- Command: `bin/axiom-send-markdown-mail` (or the installed equivalent in your environment)
+- Command: `bin/piston-send-markdown-mail` (or the installed equivalent in your environment)
 - It sends `multipart/alternative` mail:
   - plain text generated from the Markdown
   - HTML generated from the Markdown
@@ -20,7 +20,7 @@ Use this skill when composing email from the current bot account and the message
 Send a new message from a Markdown file:
 
 ```bash
-bin/axiom-send-markdown-mail \
+bin/piston-send-markdown-mail \
   --to person@example.com \
   --subject "Subject here" \
   --markdown-file /tmp/body.md
@@ -29,7 +29,7 @@ bin/axiom-send-markdown-mail \
 Reply to an existing Maildir message and preserve threading automatically:
 
 ```bash
-bin/axiom-send-markdown-mail \
+bin/piston-send-markdown-mail \
   --reply-mail "$HOME/Maildir/new/<message-file>" \
   --expect-reply-message-id '<message-id-copied-when-reading>' \
   --markdown-file /tmp/body.md
@@ -38,7 +38,7 @@ bin/axiom-send-markdown-mail \
 Attach one or more files without losing either body alternative:
 
 ```bash
-bin/axiom-send-markdown-mail \
+bin/piston-send-markdown-mail \
   --reply-mail "$HOME/Maildir/new/<message-file>" \
   --expect-reply-message-id '<message-id-copied-when-reading>' \
   --markdown-file /tmp/body.md \

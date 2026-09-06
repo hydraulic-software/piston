@@ -15,7 +15,7 @@ usage() {
   cat <<'EOF'
 Usage: scripts/install-local.sh [--copy] [--systemd]
 
-Install the staged bot-tools helpers into the current account.
+Install the staged piston helpers into the current account.
 
 Defaults:
 - symlink bin/* into ~/.local/bin
@@ -45,6 +45,14 @@ link_path() {
   local src="$1"
   local dest="$2"
   ln -sfn "$src" "$dest"
+}
+
+install_legacy_alias() {
+  local canonical_name="$1"
+  local target_dir="$2"
+  local legacy_name="axiom-${canonical_name#piston-}"
+  ln -sfn "$canonical_name" "${target_dir}/${legacy_name}"
+  echo "Installed compatibility alias: ${target_dir}/${legacy_name}"
 }
 
 while [[ $# -gt 0 ]]; do
@@ -81,6 +89,7 @@ for helper in "$REPO_ROOT"/bin/*; do
     link_path "$helper" "$target"
   fi
   echo "Installed helper: ${target}"
+  install_legacy_alias "$name" "$BIN_TARGET"
 done
 
 if [[ "$MODE" == "copy" ]]; then
@@ -104,5 +113,6 @@ if [[ "$INSTALL_SYSTEMD" == "1" ]]; then
       link_path "$unit" "$target"
     fi
     echo "Installed user unit: ${target}"
+    install_legacy_alias "$name" "$SYSTEMD_TARGET"
   done
 fi

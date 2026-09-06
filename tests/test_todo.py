@@ -6,7 +6,7 @@ from importlib.machinery import SourceFileLoader
 from pathlib import Path
 
 
-SCRIPT = Path(__file__).parents[1] / "bin" / "axiom-todo"
+SCRIPT = Path(__file__).parents[1] / "bin" / "piston-todo"
 LOADER = SourceFileLoader("axiom_todo", str(SCRIPT))
 SPEC = importlib.util.spec_from_loader(LOADER.name, LOADER)
 MODULE = importlib.util.module_from_spec(SPEC)

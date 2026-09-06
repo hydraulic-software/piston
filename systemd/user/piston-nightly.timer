@@ -5,7 +5,7 @@ Description=Nightly Codex maintenance wakeup
 OnCalendar=*-*-* 03:30
 RandomizedDelaySec=30m
 Persistent=true
-Unit=axiom-nightly.service
+Unit=piston-nightly.service
 
 [Install]
 WantedBy=timers.target

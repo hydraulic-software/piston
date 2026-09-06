@@ -3,7 +3,7 @@ set -euo pipefail
 
 usage() {
   cat <<'EOF'
-Usage: axiom-update-codex VERSION
+Usage: piston-update-codex VERSION
 
 Install an exact Codex CLI version into ${BOT_CODEX_INSTALL_DIR:-~/codex}.
 The release is staged and verified before replacing the live tree. The prior

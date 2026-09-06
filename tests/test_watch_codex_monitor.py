@@ -5,7 +5,7 @@ import unittest
 from pathlib import Path
 
 
-SCRIPT = Path(__file__).parents[1] / "bin" / "axiom-watch-codex-monitor"
+SCRIPT = Path(__file__).parents[1] / "bin" / "piston-watch-codex-monitor"
 
 
 class WatchCodexMonitorTest(unittest.TestCase):
@@ -28,7 +28,7 @@ class WatchCodexMonitorTest(unittest.TestCase):
             (output_dir / "index.html").write_text(f'href="{today}.html"')
 
             render_log = home / "renders"
-            renderer = bin_dir / "axiom-render-codex-monitor"
+            renderer = bin_dir / "piston-render-codex-monitor"
             renderer.write_text(f'#!/bin/sh\nprintf "%s %s\\n" "$(date +%s.%N)" "$*" >> {render_log}\n')
             renderer.chmod(0o755)
 

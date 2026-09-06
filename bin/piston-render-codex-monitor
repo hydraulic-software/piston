@@ -20,9 +20,9 @@ HOME = Path.home()
 STATE_DB = Path(os.environ.get("BOT_CODEX_STATE_DB", str(HOME / ".codex" / "state_5.sqlite")))
 OUTPUT_DIR = Path(os.environ.get("BOT_MONITOR_OUTPUT_DIR", str(HOME / "private_html")))
 AVATAR_SOURCE = Path(
-    os.environ.get("BOT_MONITOR_AVATAR", str(HOME / ".local" / "share" / "axiom" / "axiom-avatar.png"))
+    os.environ.get("BOT_MONITOR_AVATAR", str(HOME / ".local" / "share" / "axiom" / "piston-avatar.png"))
 )
-FAVICON_NAME = os.environ.get("BOT_MONITOR_FAVICON_NAME", "axiom-favicon.png")
+FAVICON_NAME = os.environ.get("BOT_MONITOR_FAVICON_NAME", "piston-favicon.png")
 TODO_FILE = Path(os.environ.get("BOT_TODO_FILE", str(HOME / ".local" / "state" / "axiom" / "todo.json")))
 RUN_LOG_DIR = Path(os.environ.get("BOT_RUN_LOG_DIR", str(HOME / ".local" / "state" / "axiom" / "runs")))
 TIMESTAMP_RE = re.compile(rb'"timestamp"\s*:\s*"([^"]+)"')
@@ -844,7 +844,7 @@ def day_shell(day: str) -> str:
     let signature = '';
     let initialized = false;
     let knownEntryCounts = {{}};
-    const openToolGroups = new Set(JSON.parse(localStorage.getItem('axiom-open-tool-groups') || '[]'));
+    const openToolGroups = new Set(JSON.parse(localStorage.getItem('piston-open-tool-groups') || '[]'));
 
     function escapeHtml(text) {{
       return text
@@ -918,7 +918,7 @@ def day_shell(day: str) -> str:
     function rememberOpenDetails() {{
       openToolGroups.clear();
       document.querySelectorAll('details[data-tool-group][open]').forEach(node => openToolGroups.add(node.dataset.toolGroup));
-      localStorage.setItem('axiom-open-tool-groups', JSON.stringify([...openToolGroups]));
+      localStorage.setItem('piston-open-tool-groups', JSON.stringify([...openToolGroups]));
     }}
 
     function renderEntry(entry, isNew) {{

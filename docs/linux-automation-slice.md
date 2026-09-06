@@ -4,11 +4,11 @@ This repo now includes a small Linux-scoped automation layer in addition to the 
 
 ## Included pieces
 
-- `bin/axiom-codex-runner`
+- `bin/piston-codex-runner`
   - shared mail / timer / nightly entrypoint for non-interactive Codex wakeups
-- `bin/axiom-autonomy-scheduler`
+- `bin/piston-autonomy-scheduler`
   - workload-sensitive timer gating based on the active todo board
-- `bin/axiom-mail-filter`
+- `bin/piston-mail-filter`
   - optional Maildir delivery filter with an env-configurable sender-domain allowlist
 - `systemd/user/*.service`
 - `systemd/user/*.timer`
@@ -35,20 +35,20 @@ Not included yet:
 ## Important knobs
 
 - `BOT_TODO_FILE`
-  - override the todo board path for `axiom-autonomy-scheduler` and `axiom-todo`
+  - override the todo board path for `piston-autonomy-scheduler` and `piston-todo`
 - `BOT_AUTONOMY_STATE_FILE`
   - override the scheduler state file
 - `BOT_ALLOWED_FROM_DOMAINS`
-  - comma-separated allowlist for `axiom-mail-filter`
+  - comma-separated allowlist for `piston-mail-filter`
   - if unset, the filter delivers all messages instead of dropping mail by surprise
 - `BOT_MAIL_FILTER_DOMAINS_FILE`
-  - optional newline-separated allowlist file for `axiom-mail-filter`
-  - defaults to `~/.config/bot-tools/mail-filter-domains.txt`
+  - optional newline-separated allowlist file for `piston-mail-filter`
+  - defaults to `~/.config/piston/mail-filter-domains.txt`
   - comments and blank lines are ignored
 - `BOT_MAILDIR`
-  - override the Maildir root used by `axiom-mail-filter`
+  - override the Maildir root used by `piston-mail-filter`
 - `BOT_MAIL_FILTER_LOG`
-  - override the drop log path used by `axiom-mail-filter`
+  - override the drop log path used by `piston-mail-filter`
 
 ## Install shape
 
@@ -57,9 +57,9 @@ Use `scripts/install-local.sh --systemd` to install the helpers, the `markdown-e
 After installation, the intended next steps are:
 
 1. review the unit files under `~/.config/systemd/user`
-2. copy and edit `config/environment.example` as `~/.config/bot-tools/environment`
-3. manually test each `axiom-codex-runner` mode
+2. copy and edit `config/environment.example` as `~/.config/piston/environment`
+3. manually test each `piston-codex-runner` mode
 4. run `systemctl --user daemon-reload`
-5. enable only the units you tested, for example `systemctl --user enable --now axiom-autonomy.timer`
+5. enable only the units you tested, for example `systemctl --user enable --now piston-autonomy.timer`
 
 See [`getting-started.md`](getting-started.md) for the full sequence and security model. The runner always disables Codex's built-in sandboxing because the dedicated Unix account is the security boundary.

@@ -1,12 +1,12 @@
-# Bot Tools
+# Piston
 
-Bot Tools is a small, inspectable automation kit for running a Codex-based assistant from a dedicated Linux user account. It connects three useful loops:
+Piston is a small, inspectable automation kit for running a Codex-based assistant from a dedicated Linux user account. It connects three useful loops:
 
 - wake Codex when mail arrives in a local Maildir
 - run workload-aware autonomous and nightly check-ins with `systemd --user`
 - publish a private HTML/JSON activity monitor with a lightweight todo board
 
-The repository also includes Markdown email, TeamCity, review-follow-up, and staged Codex-upgrade helpers. It grew out of a real assistant account, so commands retain the `axiom-` prefix, but the main paths and identities are configurable.
+The repository also includes Markdown email, TeamCity, review-follow-up, and staged Codex-upgrade helpers. Commands use the neutral `piston-` prefix, while temporary `axiom-*` compatibility aliases keep existing installations working during migration. The main paths and identities are configurable.
 
 ## Start Here
 
@@ -15,8 +15,8 @@ Read [`docs/getting-started.md`](docs/getting-started.md). It covers prerequisit
 The shortest safe evaluation path is:
 
 ```bash
-tar -xf bot-tools.tar.gz
-cd bot-tools
+tar -xf piston.tar.gz
+cd piston
 scripts/check.sh
 scripts/install-local.sh --copy
 ```
@@ -25,15 +25,15 @@ Copy mode is recommended for a first evaluation. Once the setup is understood, [
 
 ## Included Components
 
-- `bin/axiom-codex-runner`: non-interactive mail, timer, and nightly Codex entrypoint
-- `bin/axiom-autonomy-scheduler`: changes timer cadence based on active/background todos
-- `bin/axiom-mail-filter`: optional sender-domain filter that delivers RFC822 messages into Maildir
-- `bin/axiom-render-codex-monitor` and `bin/axiom-watch-codex-monitor`: private activity pages with incremental refreshes
-- `bin/axiom-todo`: small JSON-backed rolling todo board
-- `bin/axiom-send-markdown-mail`: multipart plain-text/HTML mail with reply threading and named attachments
-- `bin/axiom-teamcity-watch`: TeamCity build polling and log tails
-- `bin/axiom-review-followup`: opinionated review-worktree/TeamCity follow-up helper
-- `bin/axiom-update-codex`: staged, exact-version Codex CLI upgrades
+- `bin/piston-codex-runner`: non-interactive mail, timer, and nightly Codex entrypoint
+- `bin/piston-autonomy-scheduler`: changes timer cadence based on active/background todos
+- `bin/piston-mail-filter`: optional sender-domain filter that delivers RFC822 messages into Maildir
+- `bin/piston-render-codex-monitor` and `bin/piston-watch-codex-monitor`: private activity pages with incremental refreshes
+- `bin/piston-todo`: small JSON-backed rolling todo board
+- `bin/piston-send-markdown-mail`: multipart plain-text/HTML mail with reply threading and named attachments
+- `bin/piston-teamcity-watch`: TeamCity build polling and log tails
+- `bin/piston-review-followup`: opinionated review-worktree/TeamCity follow-up helper
+- `bin/piston-update-codex`: staged, exact-version Codex CLI upgrades
 - `systemd/user/`: example user services, timers, and Maildir path watcher
 - `skills/markdown-email/`: companion Codex skill for reliable email formatting
 
@@ -83,7 +83,7 @@ See [`docs/install.md`](docs/install.md) for details.
 The user services optionally read:
 
 ```text
-~/.config/bot-tools/environment
+~/.config/piston/environment
 ```
 
 Start from [`config/environment.example`](config/environment.example). Important knobs include:
@@ -99,9 +99,9 @@ Start from [`config/environment.example`](config/environment.example). Important
 
 ## Safety Model
 
-Bot Tools deliberately uses the Unix account as its security boundary. On every mail, timer, and nightly invocation, `axiom-codex-runner` passes Codex `--dangerously-bypass-approvals-and-sandbox`; there is no supported mode in which the runner relies on Codex's own approvals or filesystem sandbox.
+Piston deliberately uses the Unix account as its security boundary. On every mail, timer, and nightly invocation, `piston-codex-runner` passes Codex `--dangerously-bypass-approvals-and-sandbox`; there is no supported mode in which the runner relies on Codex's own approvals or filesystem sandbox.
 
-Install Bot Tools only in a dedicated account prepared for that trust model. Before enabling unattended wakeups:
+Install Piston only in a dedicated account prepared for that trust model. Before enabling unattended wakeups:
 
 - limit the account's filesystem permissions to data the assistant is allowed to read and change
 - expose only the credentials, network services, and command-line tools the assistant is allowed to use without per-command approval
@@ -124,7 +124,7 @@ This performs Python syntax checks, unit tests, shell syntax checks, a throwaway
 
 ## Scope And Known Opinions
 
-The mail/timer/nightly loop, todo board, and monitor are the reusable core. `axiom-review-followup` and `profiles/hq-axiom/` are examples from the original deployment and remain intentionally opinionated around its repository naming and workflow. They are safe to ignore or adapt.
+The mail/timer/nightly loop, todo board, and monitor are the reusable core. `piston-review-followup` and `profiles/hq-axiom/` are examples from the original deployment and remain intentionally opinionated around its repository naming and workflow. They are safe to ignore or adapt.
 
 More detail:
 

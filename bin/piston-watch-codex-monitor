@@ -6,7 +6,7 @@ export USER="${USER:-$(id -un)}"
 export PATH="${HOME}/.local/bin:/usr/local/bin:/usr/bin:/bin"
 
 render() {
-  "${HOME}/.local/bin/axiom-render-codex-monitor"
+  "${HOME}/.local/bin/piston-render-codex-monitor"
 }
 
 render_recent() {
@@ -16,7 +16,7 @@ render_recent() {
     render
     last_full_render_day=$today
   else
-    "${HOME}/.local/bin/axiom-render-codex-monitor" --recent
+    "${HOME}/.local/bin/piston-render-codex-monitor" --recent
   fi
 }
 
@@ -47,6 +47,6 @@ done < <(
   inotifywait -m -r \
     -e modify,close_write,create,move,delete \
     "${HOME}/.codex/sessions" \
-    "${HOME}/.local/state/axiom/runs" \
-    "${HOME}/.local/state/axiom/todo.json"
+    "${HOME}/.local/state/piston/runs" \
+    "${HOME}/.local/state/piston/todo.json"
 )

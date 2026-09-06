@@ -5,7 +5,8 @@ Description=Publish private HTML monitor for Codex sessions
 Type=simple
 WorkingDirectory=%h
 EnvironmentFile=-%h/.config/bot-tools/environment
-ExecStart=%h/.local/bin/axiom-watch-codex-monitor
+EnvironmentFile=-%h/.config/piston/environment
+ExecStart=%h/.local/bin/piston-watch-codex-monitor
 Restart=always
 RestartSec=2
 

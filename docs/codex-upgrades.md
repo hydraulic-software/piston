@@ -5,7 +5,7 @@ The automation account uses a local npm installation at `~/codex`, with `~/.loca
 Upgrade to an explicitly requested version with:
 
 ```bash
-axiom-update-codex 0.144.4
+piston-update-codex 0.144.4
 ```
 
 The helper:
@@ -21,7 +21,7 @@ After an upgrade, verify both the CLI and automation model selection:
 
 ```bash
 codex --version
-rg -n 'codex_model=' ~/.local/bin/axiom-codex-runner
+rg -n 'codex_model=' ~/.local/bin/piston-codex-runner
 ```
 
 An already-running Codex process keeps its existing binary and model. The next automation wakeup uses the new installation. If a model refresh motivated the upgrade, inspect that fresh process or its rollout `turn_context` to confirm the requested model rather than assuming the CLI upgrade changed the runner default.
@@ -31,5 +31,5 @@ Once the new version has run successfully, old timestamped backup directories ca
 For a non-default install root, set `BOT_CODEX_INSTALL_DIR`. This is also the safe way to test the complete upgrade flow without touching the live CLI:
 
 ```bash
-BOT_CODEX_INSTALL_DIR="$(mktemp -d)/codex" axiom-update-codex 0.144.4
+BOT_CODEX_INSTALL_DIR="$(mktemp -d)/codex" piston-update-codex 0.144.4
 ```

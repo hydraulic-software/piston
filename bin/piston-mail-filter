@@ -11,10 +11,10 @@ import sys
 HOME = Path.home()
 MAILDIR = Path(os.environ.get("BOT_MAILDIR", str(HOME / "Maildir")))
 LOG_PATH = Path(
-    os.environ.get("BOT_MAIL_FILTER_LOG", str(HOME / ".local/state/axiom/mail-filter.log"))
+    os.environ.get("BOT_MAIL_FILTER_LOG", str(HOME / ".local/state/piston/mail-filter.log"))
 )
 DOMAINS_FILE = Path(
-    os.environ.get("BOT_MAIL_FILTER_DOMAINS_FILE", str(HOME / ".config/bot-tools/mail-filter-domains.txt"))
+    os.environ.get("BOT_MAIL_FILTER_DOMAINS_FILE", str(HOME / ".config/piston/mail-filter-domains.txt"))
 )
 REQUIRE_ALIGNED_DKIM = os.environ.get("BOT_REQUIRE_ALIGNED_DKIM", "").lower() in {"1", "true", "yes"}
 AUTH_RESULTS_ID = os.environ.get("BOT_AUTH_RESULTS_ID", "").strip().lower()

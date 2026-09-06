@@ -6,31 +6,31 @@ REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
 echo "[1/5] Python syntax checks"
 python3 -m py_compile \
-  "$REPO_ROOT/bin/axiom-autonomy-scheduler" \
-  "$REPO_ROOT/bin/axiom-backfill-codex-summaries" \
-  "$REPO_ROOT/bin/axiom-mail-filter" \
-  "$REPO_ROOT/bin/axiom-mail-context" \
-  "$REPO_ROOT/bin/axiom-render-codex-monitor" \
-  "$REPO_ROOT/bin/axiom-review-followup" \
-  "$REPO_ROOT/bin/axiom-send-markdown-mail" \
-  "$REPO_ROOT/bin/axiom-teamcity-watch" \
-  "$REPO_ROOT/bin/axiom-todo"
+  "$REPO_ROOT/bin/piston-autonomy-scheduler" \
+  "$REPO_ROOT/bin/piston-backfill-codex-summaries" \
+  "$REPO_ROOT/bin/piston-mail-filter" \
+  "$REPO_ROOT/bin/piston-mail-context" \
+  "$REPO_ROOT/bin/piston-render-codex-monitor" \
+  "$REPO_ROOT/bin/piston-review-followup" \
+  "$REPO_ROOT/bin/piston-send-markdown-mail" \
+  "$REPO_ROOT/bin/piston-teamcity-watch" \
+  "$REPO_ROOT/bin/piston-todo"
 
 echo "[2/5] Python tests"
 python3 -m unittest discover -s "$REPO_ROOT/tests"
 
 echo "[3/5] Installer shell syntax"
-bash -n "$REPO_ROOT/bin/axiom-codex-runner"
-bash -n "$REPO_ROOT/bin/axiom-update-codex"
-bash -n "$REPO_ROOT/bin/axiom-watch-codex-monitor"
-bash -n "$REPO_ROOT/bin/axiom-watch-mail"
+bash -n "$REPO_ROOT/bin/piston-codex-runner"
+bash -n "$REPO_ROOT/bin/piston-update-codex"
+bash -n "$REPO_ROOT/bin/piston-watch-codex-monitor"
+bash -n "$REPO_ROOT/bin/piston-watch-mail"
 bash -n "$REPO_ROOT/scripts/install-local.sh"
 bash -n "$REPO_ROOT/scripts/update-local.sh"
 bash -n "$REPO_ROOT/scripts/uninstall-local.sh"
 
 # The Unix account is the automation security boundary; do not silently re-add
 # Codex's inner sandbox when adjusting runner arguments.
-if ! grep -q -- '--dangerously-bypass-approvals-and-sandbox' "$REPO_ROOT/bin/axiom-codex-runner"; then
+if ! grep -q -- '--dangerously-bypass-approvals-and-sandbox' "$REPO_ROOT/bin/piston-codex-runner"; then
   echo "runner does not disable Codex approvals and sandboxing" >&2
   exit 1
 fi
@@ -40,7 +40,7 @@ if ! grep -q -- 'BOT_REQUIRE_ALIGNED_DKIM' "$REPO_ROOT/config/environment.exampl
   exit 1
 fi
 
-if ! grep -q -- 'repeated, stable workflows' "$REPO_ROOT/bin/axiom-codex-runner"; then
+if ! grep -q -- 'repeated, stable workflows' "$REPO_ROOT/bin/piston-codex-runner"; then
   echo "nightly prompt omits skill-curation guidance" >&2
   exit 1
 fi
@@ -53,10 +53,15 @@ mkdir -p "$tmpdir/home" "$tmpdir/home/.config/systemd/user"
 CODEX_HOME="$tmpdir/codex" HOME="$tmpdir/home" \
   "$REPO_ROOT/scripts/install-local.sh" --systemd >/dev/null
 
-for helper in axiom-autonomy-scheduler axiom-backfill-codex-summaries axiom-codex-runner axiom-mail-context axiom-mail-filter axiom-render-codex-monitor axiom-review-followup axiom-send-markdown-mail axiom-teamcity-watch axiom-todo axiom-update-codex axiom-watch-codex-monitor axiom-watch-mail; do
+for helper in piston-autonomy-scheduler piston-backfill-codex-summaries piston-codex-runner piston-mail-context piston-mail-filter piston-render-codex-monitor piston-review-followup piston-send-markdown-mail piston-teamcity-watch piston-todo piston-update-codex piston-watch-codex-monitor piston-watch-mail; do
   target="$tmpdir/home/.local/bin/$helper"
   if [[ ! -e "$target" ]]; then
     echo "missing installed helper: $target" >&2
+    exit 1
+  fi
+  legacy="$tmpdir/home/.local/bin/axiom-${helper#piston-}"
+  if [[ ! -L "$legacy" || ! -e "$legacy" ]]; then
+    echo "missing installed compatibility alias: $legacy" >&2
     exit 1
   fi
 done
@@ -66,10 +71,15 @@ if [[ ! -e "$tmpdir/codex/skills/markdown-email/SKILL.md" ]]; then
   exit 1
 fi
 
-for unit in axiom-autonomy.service axiom-autonomy.timer axiom-codex-monitor.service axiom-mail.path axiom-mail.service axiom-nightly.service axiom-nightly.timer; do
+for unit in piston-autonomy.service piston-autonomy.timer piston-codex-monitor.service piston-mail.path piston-mail.service piston-nightly.service piston-nightly.timer; do
   target="$tmpdir/home/.config/systemd/user/$unit"
   if [[ ! -e "$target" ]]; then
     echo "missing installed user unit: $target" >&2
+    exit 1
+  fi
+  legacy="$tmpdir/home/.config/systemd/user/axiom-${unit#piston-}"
+  if [[ ! -L "$legacy" || ! -e "$legacy" ]]; then
+    echo "missing installed unit compatibility alias: $legacy" >&2
     exit 1
   fi
 done
@@ -77,10 +87,15 @@ done
 CODEX_HOME="$tmpdir/codex" HOME="$tmpdir/home" \
   "$REPO_ROOT/scripts/uninstall-local.sh" >/dev/null
 
-for helper in axiom-autonomy-scheduler axiom-backfill-codex-summaries axiom-codex-runner axiom-mail-context axiom-mail-filter axiom-render-codex-monitor axiom-review-followup axiom-send-markdown-mail axiom-teamcity-watch axiom-todo axiom-update-codex axiom-watch-codex-monitor axiom-watch-mail; do
+for helper in piston-autonomy-scheduler piston-backfill-codex-summaries piston-codex-runner piston-mail-context piston-mail-filter piston-render-codex-monitor piston-review-followup piston-send-markdown-mail piston-teamcity-watch piston-todo piston-update-codex piston-watch-codex-monitor piston-watch-mail; do
   target="$tmpdir/home/.local/bin/$helper"
   if [[ -e "$target" || -L "$target" ]]; then
     echo "helper still present after uninstall: $target" >&2
+    exit 1
+  fi
+  legacy="$tmpdir/home/.local/bin/axiom-${helper#piston-}"
+  if [[ -e "$legacy" || -L "$legacy" ]]; then
+    echo "compatibility alias still present after uninstall: $legacy" >&2
     exit 1
   fi
 done
@@ -90,10 +105,15 @@ if [[ -e "$tmpdir/codex/skills/markdown-email" || -L "$tmpdir/codex/skills/markd
   exit 1
 fi
 
-for unit in axiom-autonomy.service axiom-autonomy.timer axiom-codex-monitor.service axiom-mail.path axiom-mail.service axiom-nightly.service axiom-nightly.timer; do
+for unit in piston-autonomy.service piston-autonomy.timer piston-codex-monitor.service piston-mail.path piston-mail.service piston-nightly.service piston-nightly.timer; do
   target="$tmpdir/home/.config/systemd/user/$unit"
   if [[ -e "$target" || -L "$target" ]]; then
     echo "user unit still present after uninstall: $target" >&2
+    exit 1
+  fi
+  legacy="$tmpdir/home/.config/systemd/user/axiom-${unit#piston-}"
+  if [[ -e "$legacy" || -L "$legacy" ]]; then
+    echo "unit compatibility alias still present after uninstall: $legacy" >&2
     exit 1
   fi
 done
@@ -103,7 +123,7 @@ tmpdir2="$(mktemp -d)"
 trap 'rm -rf "$tmpdir" "$tmpdir2"' EXIT
 
 mkdir -p "$tmpdir2/home" "$tmpdir2/home/.config/systemd/user"
-BOT_TOOLS_HOME="$tmpdir2/store" CODEX_HOME="$tmpdir2/codex" HOME="$tmpdir2/home" \
+PISTON_HOME="$tmpdir2/store" CODEX_HOME="$tmpdir2/codex" HOME="$tmpdir2/home" \
   "$REPO_ROOT/scripts/update-local.sh" --systemd >/dev/null
 
 if [[ ! -L "$tmpdir2/store/current" ]]; then
@@ -111,12 +131,26 @@ if [[ ! -L "$tmpdir2/store/current" ]]; then
   exit 1
 fi
 
-for helper in axiom-autonomy-scheduler axiom-backfill-codex-summaries axiom-codex-runner axiom-mail-context axiom-mail-filter axiom-render-codex-monitor axiom-review-followup axiom-send-markdown-mail axiom-teamcity-watch axiom-todo axiom-update-codex axiom-watch-codex-monitor axiom-watch-mail; do
+for helper in piston-autonomy-scheduler piston-backfill-codex-summaries piston-codex-runner piston-mail-context piston-mail-filter piston-render-codex-monitor piston-review-followup piston-send-markdown-mail piston-teamcity-watch piston-todo piston-update-codex piston-watch-codex-monitor piston-watch-mail; do
   target="$tmpdir2/home/.local/bin/$helper"
   if [[ ! -L "$target" ]]; then
     echo "managed helper is not a symlink: $target" >&2
     exit 1
   fi
+  legacy="$tmpdir2/home/.local/bin/axiom-${helper#piston-}"
+  if [[ ! -L "$legacy" || ! -e "$legacy" ]]; then
+    echo "missing managed compatibility alias: $legacy" >&2
+    exit 1
+  fi
 done
 
-echo "bot-tools checks passed"
+for unit in piston-autonomy.service piston-autonomy.timer piston-codex-monitor.service piston-mail.path piston-mail.service piston-nightly.service piston-nightly.timer; do
+  target="$tmpdir2/home/.config/systemd/user/$unit"
+  legacy="$tmpdir2/home/.config/systemd/user/axiom-${unit#piston-}"
+  if [[ ! -L "$target" || ! -L "$legacy" || ! -e "$legacy" ]]; then
+    echo "missing managed user unit or compatibility alias: $unit" >&2
+    exit 1
+  fi
+done
+
+echo "piston checks passed"

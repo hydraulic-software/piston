@@ -7,7 +7,7 @@ import unittest
 from pathlib import Path
 
 
-SCRIPT = Path(__file__).parents[1] / "bin" / "axiom-render-codex-monitor"
+SCRIPT = Path(__file__).parents[1] / "bin" / "piston-render-codex-monitor"
 LOADER = SourceFileLoader("axiom_render_codex_monitor", str(SCRIPT))
 SPEC = importlib.util.spec_from_loader(LOADER.name, LOADER)
 MODULE = importlib.util.module_from_spec(SPEC)

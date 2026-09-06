@@ -8,7 +8,7 @@ import unittest
 from pathlib import Path
 
 
-SCRIPT = Path(__file__).parents[1] / "bin" / "axiom-send-markdown-mail"
+SCRIPT = Path(__file__).parents[1] / "bin" / "piston-send-markdown-mail"
 
 
 def load_script():

@@ -12,9 +12,9 @@ from pathlib import Path
 
 HOME = Path.home()
 STATE_FILE = Path(
-    os.environ.get("BOT_AUTONOMY_STATE_FILE", str(HOME / ".local/state/axiom/autonomy-schedule.json"))
+    os.environ.get("BOT_AUTONOMY_STATE_FILE", str(HOME / ".local/state/piston/autonomy-schedule.json"))
 )
-TODO_FILE = Path(os.environ.get("BOT_TODO_FILE", str(HOME / ".local/state/axiom/todo.json")))
+TODO_FILE = Path(os.environ.get("BOT_TODO_FILE", str(HOME / ".local/state/piston/todo.json")))
 
 
 @dataclass

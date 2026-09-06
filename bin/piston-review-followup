@@ -14,7 +14,7 @@ WORKTREE_ROOTS = {
     "corp": HOME / "corp",
 }
 PRODUCT_TEAMCITY_BUILD_TYPE = "Product_Axiom_ProductLinux"
-TEAMCITY_HELPER = HOME / ".local" / "bin" / "axiom-teamcity-watch"
+TEAMCITY_HELPER = HOME / ".local" / "bin" / "piston-teamcity-watch"
 TEAMCITY_MISSING_BUILD_GRACE = timedelta(days=21)
 
 

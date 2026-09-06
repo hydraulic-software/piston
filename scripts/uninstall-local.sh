@@ -13,12 +13,12 @@ usage() {
   cat <<'EOF'
 Usage: scripts/uninstall-local.sh
 
-Remove the staged bot-tools helpers and skill from the current account.
+Remove the staged piston helpers and skill from the current account.
 
 This removes:
-- ~/.local/bin/axiom-send-markdown-mail
-- ~/.local/bin/axiom-teamcity-watch
-- ~/.local/bin/axiom-todo
+- ~/.local/bin/piston-send-markdown-mail
+- ~/.local/bin/piston-teamcity-watch
+- ~/.local/bin/piston-todo
 - ${CODEX_HOME:-~/.codex}/skills/markdown-email
 - matching example user units from ~/.config/systemd/user
 
@@ -54,6 +54,7 @@ for helper in "$REPO_ROOT"/bin/*; do
   [[ -f "$helper" ]] || continue
   name="$(basename "$helper")"
   remove_if_present "${BIN_TARGET}/${name}"
+  remove_if_present "${BIN_TARGET}/axiom-${name#piston-}"
 done
 
 remove_if_present "$SKILL_TARGET"
@@ -62,4 +63,5 @@ for unit in "$REPO_ROOT"/systemd/user/*; do
   [[ -f "$unit" ]] || continue
   name="$(basename "$unit")"
   remove_if_present "${SYSTEMD_TARGET}/${name}"
+  remove_if_present "${SYSTEMD_TARGET}/axiom-${name#piston-}"
 done
