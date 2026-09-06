@@ -15,5 +15,17 @@ BOT_ENVELOPE_FROM=assistant@example.com
 # Optional overrides.
 # BOT_SENDMAIL=/usr/sbin/sendmail
 # BOT_ALLOWED_FROM_DOMAINS=example.com
+# BOT_MAIL_FILTER_DOMAINS_FILE=/home/assistant/.config/bot-tools/mail-filter-domains.txt
+# BOT_MAILDIR=/home/assistant/Maildir
+# BOT_MAIL_FILTER_LOG=/home/assistant/.local/state/axiom/mail-filter.log
+# Require a trusted local Authentication-Results header whose passing DKIM
+# signing domain exactly matches the visible From domain.
+# BOT_REQUIRE_ALIGNED_DKIM=1
+# BOT_AUTH_RESULTS_ID=mail.example.com
+# BOT_TODO_FILE=/home/assistant/.local/state/axiom/todo.json
+# BOT_AUTONOMY_STATE_FILE=/home/assistant/.local/state/axiom/autonomy-schedule.json
+# BOT_RUN_LOG_DIR=/home/assistant/.local/state/axiom/runs
+# BOT_CODEX_STATE_DB=/home/assistant/.codex/state_5.sqlite
 # BOT_MONITOR_OUTPUT_DIR=/home/assistant/private_html
 # TEAMCITY_BASE_URL=https://teamcity.example.com
+# TEAMCITY_API_KEY=replace-with-account-local-secret

@@ -72,6 +72,8 @@ chmod 600 ~/.config/bot-tools/environment
 
 Edit sender addresses and any model/path overrides. Do not put broadly reusable credentials in the repository. If a service needs a credential, keep the environment file mode `0600` or use a host secret manager.
 
+Treat `config/environment.example` as a reference, not a ready-to-enable configuration. In particular, set `BOT_REQUIRE_ALIGNED_DKIM=1` and the local verifier's `BOT_AUTH_RESULTS_ID` before allowing mail to trigger unattended work. The example leaves enforcement commented so an incorrect verifier identity cannot silently discard all first-run mail.
+
 The runner uses Codex's configured model and always disables Codex's built-in approvals and sandboxing. Set up the dedicated Unix account as the security boundary before enabling unattended wakeups.
 
 ## 5. Set Up Maildir
@@ -174,6 +176,8 @@ Unattended agent execution is powerful. Use several layers rather than relying o
 - back up important repositories and state
 
 The runner passes Codex's `--dangerously-bypass-approvals-and-sandbox` option on every execution. The dedicated Unix account must therefore be the external sandbox: mail-triggered prompts can run unrestricted commands with all permissions and credentials available to that account.
+
+Nightly maintenance asks the assistant to notice repeated, stable procedures that may deserve a narrow skill. Skills should encode actionable workflow and guardrails; dated notes and the thematic wiki remain the canonical homes for history and general knowledge.
 
 ## Updating And Removing
 

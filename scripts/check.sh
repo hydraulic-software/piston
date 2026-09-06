@@ -35,6 +35,16 @@ if ! grep -q -- '--dangerously-bypass-approvals-and-sandbox' "$REPO_ROOT/bin/axi
   exit 1
 fi
 
+if ! grep -q -- 'BOT_REQUIRE_ALIGNED_DKIM' "$REPO_ROOT/config/environment.example"; then
+  echo "environment example omits the unattended-mail authentication control" >&2
+  exit 1
+fi
+
+if ! grep -q -- 'repeated, stable workflows' "$REPO_ROOT/bin/axiom-codex-runner"; then
+  echo "nightly prompt omits skill-curation guidance" >&2
+  exit 1
+fi
+
 echo "[4/5] Throwaway install smoke test"
 tmpdir="$(mktemp -d)"
 trap 'rm -rf "$tmpdir"' EXIT

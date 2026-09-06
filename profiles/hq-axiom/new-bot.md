@@ -63,6 +63,11 @@ authentication, and an `AGENTS.md` that states the bot's mandate and boundaries.
 Do not reuse Axiom's live state database, notes, Maildir, Codex session, or
 automation lock.
 
+Start the account with only reusable skills installed by Bot Tools. Add local
+workflow skills after the procedure has repeated and its guardrails are known;
+do not copy Axiom's entire skill directory, which contains account- and
+project-specific assumptions.
+
 ## 5. Create Bot-Owned Repositories
 
 HQ Gitolite allows each account to create repositories below its own username.
@@ -95,6 +100,7 @@ Validate each boundary independently:
 4. run timer, nightly, and mail modes manually and inspect their transcripts
 5. confirm the monitor is private and requires HQ authentication
 6. confirm the bot cannot access repositories or credentials outside its scope
+7. run `systemd-analyze --user verify` over the installed Bot Tools units
 
 Only then enable the user timers and mail path described in the portable guide.
 
