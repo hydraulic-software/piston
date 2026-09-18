@@ -1,0 +1,163 @@
+#!/usr/bin/env python3
+from __future__ import annotations
+
+import argparse
+import json
+import re
+import subprocess
+import sys
+from collections import defaultdict
+from datetime import date
+from pathlib import Path
+
+
+HOME = Path.home()
+NOTES_DIR = HOME / "notes"
+WIKI_DIR = NOTES_DIR / "wiki"
+TODO_FILE = HOME / ".local/state/piston/todo.json"
+
+
+def load_todos() -> list[dict]:
+    if not TODO_FILE.exists():
+        return []
+    try:
+        data = json.loads(TODO_FILE.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        raise SystemExit(f"invalid JSON in {TODO_FILE}: {exc}") from exc
+    items = data.get("items", [])
+    if not isinstance(items, list):
+        raise SystemExit(f"{TODO_FILE} must contain an 'items' list")
+    current_day = date.today().isoformat()
+    visible = []
+    for item in items:
+        if not isinstance(item, dict):
+            continue
+        normalized = {
+            "id": str(item.get("id", "")).strip(),
+            "text": str(item.get("text", "")).strip(),
+            "status": str(item.get("status", "pending")).strip().lower(),
+            "tier": str(item.get("tier", "now") or "now").strip().lower(),
+            "updated_day": str(item.get("updated_day", "")).strip(),
+            "done_day": str(item.get("done_day", "")).strip(),
+        }
+        if normalized["status"] == "done" and normalized["done_day"] and normalized["done_day"] < current_day:
+            continue
+        visible.append(normalized)
+    return visible
+
+
+def dated_notes(limit: int) -> list[Path]:
+    pattern = re.compile(r"\d{4}-\d{2}-\d{2}.*\.md$")
+    files = [path for path in NOTES_DIR.glob("*.md") if pattern.fullmatch(path.name)]
+    return sorted(files, key=lambda path: path.name, reverse=True)[:limit]
+
+
+def wiki_pages() -> list[Path]:
+    return sorted(path for path in WIKI_DIR.glob("*.md") if path.name != "README.md")
+
+
+def cleanup_candidates() -> list[tuple[str, list[Path]]]:
+    groups: list[tuple[str, list[Path]]] = []
+
+    def add_group(label: str, paths: list[Path]) -> None:
+        existing = sorted(path for path in paths if path.exists())
+        if existing:
+            groups.append((label, existing))
+
+    add_group("JFXCentral experiment clones", [path for path in HOME.glob("jfxcentral2*") if path.is_dir()])
+    add_group("Dedicated product worktrees", [path for path in HOME.glob("product-*") if path.is_dir()])
+    add_group("Dedicated corp worktrees", [path for path in HOME.glob("corp-*") if path.is_dir()])
+    add_group("Loose patch artifacts", [path for path in HOME.glob("*.patch") if path.is_file()])
+    add_group("Downloaded Maven artifacts", [path for path in HOME.glob("apache-maven-3.8.8-bin*") if path.exists()])
+    tmp_dir = HOME / "tmp"
+    if tmp_dir.exists() and any(tmp_dir.iterdir()):
+        groups.append(("Temporary scratch directory", [tmp_dir]))
+    add_group(
+        "Hidden JFXCentral runtime directories",
+        [
+            HOME / ".com.dlsc.jfxcentral2.app.JFXCentral2App",
+            HOME / ".jfxcentral",
+            HOME / ".jfxcentralrepo",
+            HOME / ".tmp-tilde-classpath-test",
+        ],
+    )
+    return groups
+
+
+def path_size_label(path: Path) -> str:
+    try:
+        result = subprocess.run(["du", "-sh", "--", str(path)], check=True, capture_output=True, text=True)
+    except (OSError, subprocess.CalledProcessError):
+        return "size unknown"
+    return result.stdout.split(maxsplit=1)[0] if result.stdout.strip() else "size unknown"
+
+
+def group_size_label(paths: list[Path]) -> str:
+    try:
+        result = subprocess.run(
+            ["du", "-sch", "--", *map(str, paths)], check=True, capture_output=True, text=True
+        )
+    except (OSError, subprocess.CalledProcessError):
+        return "size unknown"
+    lines = [line for line in result.stdout.splitlines() if line.strip()]
+    return lines[-1].split(maxsplit=1)[0] if lines else "size unknown"
+
+
+def render_text(limit: int) -> str:
+    lines = ["# Nightly Summary", "", "## Todo"]
+    todos = load_todos()
+    grouped: dict[str, list[dict]] = defaultdict(list)
+    for item in todos:
+        grouped[item["status"]].append(item)
+    if todos:
+        for status in ("started", "pending", "done"):
+            if not grouped[status]:
+                continue
+            lines.append(f"- {status}:")
+            for item in sorted(grouped[status], key=lambda entry: entry["id"]):
+                meta = []
+                if item["tier"] != "now":
+                    meta.append(f"tier {item['tier']}")
+                if item["updated_day"]:
+                    meta.append(f"updated {item['updated_day']}")
+                if item["done_day"]:
+                    meta.append(f"done {item['done_day']}")
+                suffix = f" ({', '.join(meta)})" if meta else ""
+                lines.append(f"  - {item['id']}: {item['text']}{suffix}")
+    else:
+        lines.append("- No todo items.")
+
+    lines.extend(["", "## Recent Dated Notes"])
+    notes = dated_notes(limit)
+    lines.extend((f"- {path.name}" for path in notes) if notes else ["- No dated notes found."])
+
+    lines.extend(["", "## Wiki"])
+    pages = wiki_pages()
+    if pages:
+        lines.append(f"- topic pages: {len(pages)}")
+        lines.extend(f"- {path.name}" for path in pages)
+    else:
+        lines.append("- No wiki pages found.")
+
+    lines.extend(["", "## Cleanup Candidates"])
+    groups = cleanup_candidates()
+    if groups:
+        for label, paths in groups:
+            lines.append(f"- {label} ({group_size_label(paths)}):")
+            lines.extend(f"  - {path.name} ({path_size_label(path)})" for path in paths)
+    else:
+        lines.append("- No obvious cleanup candidates detected.")
+    lines.append("")
+    return "\n".join(lines)
+
+
+def main(argv: list[str]) -> int:
+    parser = argparse.ArgumentParser(description="Summarize nightly maintenance inputs.")
+    parser.add_argument("--limit-notes", type=int, default=8)
+    args = parser.parse_args(argv)
+    print(render_text(args.limit_notes))
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main(sys.argv[1:]))

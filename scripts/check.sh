@@ -11,6 +11,7 @@ python3 -m py_compile \
   "$REPO_ROOT/bin/piston-mail-filter" \
   "$REPO_ROOT/bin/piston-mail-context" \
   "$REPO_ROOT/bin/piston-render-codex-monitor" \
+  "$REPO_ROOT/bin/piston-nightly-summary" \
   "$REPO_ROOT/bin/piston-review-followup" \
   "$REPO_ROOT/bin/piston-send-markdown-mail" \
   "$REPO_ROOT/bin/piston-teamcity-watch" \
@@ -53,7 +54,7 @@ mkdir -p "$tmpdir/home" "$tmpdir/home/.config/systemd/user"
 CODEX_HOME="$tmpdir/codex" HOME="$tmpdir/home" \
   "$REPO_ROOT/scripts/install-local.sh" --systemd >/dev/null
 
-for helper in piston-autonomy-scheduler piston-backfill-codex-summaries piston-codex-runner piston-mail-context piston-mail-filter piston-render-codex-monitor piston-review-followup piston-send-markdown-mail piston-teamcity-watch piston-todo piston-update-codex piston-watch-codex-monitor piston-watch-mail; do
+for helper in piston-autonomy-scheduler piston-backfill-codex-summaries piston-codex-runner piston-mail-context piston-mail-filter piston-nightly-summary piston-render-codex-monitor piston-review-followup piston-send-markdown-mail piston-teamcity-watch piston-todo piston-update-codex piston-watch-codex-monitor piston-watch-mail; do
   target="$tmpdir/home/.local/bin/$helper"
   if [[ ! -e "$target" ]]; then
     echo "missing installed helper: $target" >&2
@@ -87,7 +88,7 @@ done
 CODEX_HOME="$tmpdir/codex" HOME="$tmpdir/home" \
   "$REPO_ROOT/scripts/uninstall-local.sh" >/dev/null
 
-for helper in piston-autonomy-scheduler piston-backfill-codex-summaries piston-codex-runner piston-mail-context piston-mail-filter piston-render-codex-monitor piston-review-followup piston-send-markdown-mail piston-teamcity-watch piston-todo piston-update-codex piston-watch-codex-monitor piston-watch-mail; do
+for helper in piston-autonomy-scheduler piston-backfill-codex-summaries piston-codex-runner piston-mail-context piston-mail-filter piston-nightly-summary piston-render-codex-monitor piston-review-followup piston-send-markdown-mail piston-teamcity-watch piston-todo piston-update-codex piston-watch-codex-monitor piston-watch-mail; do
   target="$tmpdir/home/.local/bin/$helper"
   if [[ -e "$target" || -L "$target" ]]; then
     echo "helper still present after uninstall: $target" >&2
@@ -131,7 +132,7 @@ if [[ ! -L "$tmpdir2/store/current" ]]; then
   exit 1
 fi
 
-for helper in piston-autonomy-scheduler piston-backfill-codex-summaries piston-codex-runner piston-mail-context piston-mail-filter piston-render-codex-monitor piston-review-followup piston-send-markdown-mail piston-teamcity-watch piston-todo piston-update-codex piston-watch-codex-monitor piston-watch-mail; do
+for helper in piston-autonomy-scheduler piston-backfill-codex-summaries piston-codex-runner piston-mail-context piston-mail-filter piston-nightly-summary piston-render-codex-monitor piston-review-followup piston-send-markdown-mail piston-teamcity-watch piston-todo piston-update-codex piston-watch-codex-monitor piston-watch-mail; do
   target="$tmpdir2/home/.local/bin/$helper"
   if [[ ! -L "$target" ]]; then
     echo "managed helper is not a symlink: $target" >&2
