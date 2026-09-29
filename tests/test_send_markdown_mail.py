@@ -20,6 +20,17 @@ def load_script():
 
 
 class ReplyParentGuardTest(unittest.TestCase):
+    def test_reply_all_preserves_participants_and_excludes_self(self):
+        with tempfile.TemporaryDirectory() as directory:
+            mail = Path(directory) / "message"
+            mail.write_text('From: Daneel <daneel@example.com>\nTo: Mike <mike@example.com>, assistant@example.com\nCc: Daneel <daneel@example.com>, Other <other@example.com>\nSubject: Test\nMessage-ID: <x>\n\nBody')
+            args = self.args(mail, '<x>')
+            args.reply_all = True
+            self.module.render_with_pandoc = lambda text, _: text
+            message = self.module.build_message(args, 'Reply')
+            self.assertEqual(str(message['To']), 'Daneel <daneel@example.com>, Mike <mike@example.com>')
+            self.assertEqual(str(message['Cc']), 'Other <other@example.com>')
+
     def setUp(self):
         self.module = load_script()
 

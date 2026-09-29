@@ -10,6 +10,7 @@ import shutil
 import subprocess
 import sys
 from email.message import EmailMessage
+from email.utils import getaddresses, formataddr
 from pathlib import Path
 
 
@@ -24,6 +25,8 @@ def parse_args():
         description="Send multipart plain-text + HTML mail from Markdown, optionally threading as a reply."
     )
     parser.add_argument("--to", help="Recipient email address")
+    parser.add_argument("--cc", help="Cc recipients")
+    parser.add_argument("--reply-all", action="store_true", help="Include original To/Cc participants, excluding self; requires --reply-mail")
     parser.add_argument("--subject", help="Message subject")
     parser.add_argument("--markdown-file", type=Path, help="Path to Markdown body file")
     parser.add_argument(
@@ -76,9 +79,21 @@ def subject_for_reply(subject: str) -> str:
     return f"Re: {subject}"
 
 
-def reply_context(reply_mail: Path) -> dict[str, str]:
+def reply_context(reply_mail: Path, reply_all=False, self_headers=()) -> dict[str, str]:
     message = email.message_from_bytes(reply_mail.read_bytes(), policy=email.policy.default)
     to_header = message.get("Reply-To") or message.get("From")
+    cc_header = None
+    if reply_all:
+        seen = {address.lower() for _, address in getaddresses(self_headers)}
+        def recipients(headers):
+            result = []
+            for name, address in getaddresses(headers):
+                if address and address.lower() not in seen:
+                    seen.add(address.lower())
+                    result.append(formataddr((name, address)))
+            return ", ".join(result)
+        to_header = recipients([str(to_header or "")] + message.get_all("To", []))
+        cc_header = recipients(message.get_all("Cc", []))
     subject = subject_for_reply(message.get("Subject", "").strip() or "(no subject)")
     message_id = (message.get("Message-ID") or "").strip()
     references = " ".join(
@@ -86,6 +101,7 @@ def reply_context(reply_mail: Path) -> dict[str, str]:
     ).strip()
     return {
         "to": to_header,
+        "cc": cc_header,
         "subject": subject,
         "in_reply_to": message_id,
         "references": references,
@@ -104,7 +120,10 @@ def build_message(args, markdown_text: str) -> EmailMessage:
             f'<p style="color:#777;font-size:0.9em;margin:0">{html_signature}</p>'
         )
 
-    reply_values = reply_context(args.reply_mail) if args.reply_mail else {}
+    if getattr(args, "reply_all", False) and not args.reply_mail:
+        raise SystemExit("--reply-all requires --reply-mail.")
+    reply_values = reply_context(args.reply_mail, getattr(args, "reply_all", False),
+                                 [args.from_header, args.envelope_from]) if args.reply_mail else {}
     if args.expect_reply_message_id:
         if not args.reply_mail:
             raise SystemExit("--expect-reply-message-id requires --reply-mail.")
@@ -126,6 +145,11 @@ def build_message(args, markdown_text: str) -> EmailMessage:
     msg = EmailMessage()
     msg["From"] = args.from_header
     msg["To"] = to_header
+    cc_header = getattr(args, "cc", None)
+    if cc_header is None:
+        cc_header = reply_values.get("cc")
+    if cc_header:
+        msg["Cc"] = cc_header
     msg["Subject"] = subject
     msg["MIME-Version"] = "1.0"
     if args.reply_to:
@@ -157,8 +181,10 @@ def send_message(msg: EmailMessage, envelope_from: str):
     if not shutil.which(SENDMAIL):
         raise SystemExit(f"{SENDMAIL} is not available on this system.")
 
+    recipients = list(dict.fromkeys(address for _, address in getaddresses(
+        msg.get_all("To", []) + msg.get_all("Cc", [])) if address))
     process = subprocess.run(
-        [SENDMAIL, "-oi", "-f", envelope_from, "--"] + msg.get_all("To", []),
+        [SENDMAIL, "-oi", "-f", envelope_from, "--"] + recipients,
         input=msg.as_bytes(),
         capture_output=True,
         check=False,

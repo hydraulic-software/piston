@@ -59,6 +59,7 @@ In reply mode the helper derives:
 3. Use `--reply-mail` when responding to a message file you already have locally.
 4. Retain that exact path from the read step; do not rediscover "the newest mail" immediately before sending.
 5. Pass `--expect-reply-message-id` for an end-to-end guard against a new message becoming the reply parent.
+   For an authorized group thread, add `--reply-all` to preserve original To/Cc participants, excluding the sending identity and duplicate addresses. Plain `--reply-mail` replies only to the sender. Inspect recipients before sending; customer-contact restrictions still apply. `--cc` explicitly sets Cc recipients.
 6. Confirm the current process has the instance's `BOT_MAIL_FROM` and `BOT_ENVELOPE_FROM` values. If it does not, source the instance environment file or pass the identity explicitly; never use generic development defaults for a real send.
 7. Use repeatable `--attach` arguments for attachments. Do not fall back to GNU `mail`; its MIME option ordering is easy to misuse and can silently drop the body or filename.
 8. If you want to inspect the exact MIME before sending, add `--dry-run`.
