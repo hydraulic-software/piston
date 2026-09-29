@@ -5,6 +5,7 @@ import importlib.machinery
 import importlib.util
 import tempfile
 import unittest
+from unittest.mock import patch
 from pathlib import Path
 
 
@@ -20,6 +21,30 @@ def load_script():
 
 
 class ReplyParentGuardTest(unittest.TestCase):
+    def test_reply_to_and_sender_only_are_preserved(self):
+        with tempfile.TemporaryDirectory() as directory:
+            mail = Path(directory) / "message"
+            mail.write_text('From: Sender <sender@example.com>\nReply-To: Replies <replies@example.com>\nTo: assistant@example.com, Mike <mike@example.com>\nCc: mike@example.com\nSubject: Test\nMessage-ID: <x>\n\nBody')
+            args = self.args(mail, '<x>')
+            self.module.render_with_pandoc = lambda text, _: text
+            message = self.module.build_message(args, 'Reply')
+            self.assertEqual(str(message['To']), 'Replies <replies@example.com>')
+            self.assertIsNone(message['Cc'])
+            args.reply_all = True
+            message = self.module.build_message(args, 'Reply')
+            self.assertEqual(str(message['To']), 'Replies <replies@example.com>, Mike <mike@example.com>')
+            self.assertIsNone(message['Cc'])
+
+    def test_sendmail_receives_individual_to_and_cc_addresses(self):
+        message = email.message.EmailMessage()
+        message['To'] = '"Person, One" <one@example.com>, Two <two@example.com>'
+        message['Cc'] = 'two@example.com, Three <three@example.com>'
+        message.set_content('Body')
+        with patch.object(self.module.shutil, 'which', return_value='/usr/sbin/sendmail'), patch.object(self.module.subprocess, 'run') as run:
+            run.return_value.returncode = 0
+            self.module.send_message(message, 'assistant@example.com')
+        self.assertEqual(run.call_args.args[0], [self.module.SENDMAIL, '-oi', '-f', 'assistant@example.com', '--', 'one@example.com', 'two@example.com', 'three@example.com'])
+
     def test_reply_all_preserves_participants_and_excludes_self(self):
         with tempfile.TemporaryDirectory() as directory:
             mail = Path(directory) / "message"
