@@ -79,6 +79,11 @@ done
 
 mkdir -p "$BIN_TARGET" "$SKILLS_ROOT"
 
+if [[ "$MODE" == "copy" ]]; then
+  mkdir -p "${HOME}/.local/share/piston"
+  install -m 0644 "$REPO_ROOT/config/codex-version" "${HOME}/.local/share/piston/codex-version"
+fi
+
 for helper in "$REPO_ROOT"/bin/*; do
   [[ -f "$helper" ]] || continue
   name="$(basename "$helper")"

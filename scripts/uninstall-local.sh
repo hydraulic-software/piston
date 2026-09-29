@@ -58,6 +58,7 @@ for helper in "$REPO_ROOT"/bin/*; do
 done
 
 remove_if_present "$SKILL_TARGET"
+remove_if_present "${HOME}/.local/share/piston/codex-version"
 
 for unit in "$REPO_ROOT"/systemd/user/*; do
   [[ -f "$unit" ]] || continue

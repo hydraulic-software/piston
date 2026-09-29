@@ -18,6 +18,10 @@ EOF
 script_path="$(readlink -f "${BASH_SOURCE[0]}")"
 script_dir="$(cd "$(dirname "$script_path")" && pwd)"
 pin_file="${BOT_CODEX_VERSION_FILE:-${script_dir}/../config/codex-version}"
+# Copy-mode installations have no release tree beside the executable.
+if [[ -z "${BOT_CODEX_VERSION_FILE:-}" && ! -r "$pin_file" ]]; then
+  pin_file="${HOME}/.local/share/piston/codex-version"
+fi
 check_only=0
 
 if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
