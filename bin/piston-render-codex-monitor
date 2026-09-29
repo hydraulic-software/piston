@@ -20,11 +20,12 @@ HOME = Path.home()
 STATE_DB = Path(os.environ.get("BOT_CODEX_STATE_DB", str(HOME / ".codex" / "state_5.sqlite")))
 OUTPUT_DIR = Path(os.environ.get("BOT_MONITOR_OUTPUT_DIR", str(HOME / "private_html")))
 AVATAR_SOURCE = Path(
-    os.environ.get("BOT_MONITOR_AVATAR", str(HOME / ".local" / "share" / "axiom" / "piston-avatar.png"))
+    os.environ.get("BOT_MONITOR_AVATAR", str(HOME / ".local" / "share" / "piston" / "piston-avatar.png"))
 )
 FAVICON_NAME = os.environ.get("BOT_MONITOR_FAVICON_NAME", "piston-favicon.png")
-TODO_FILE = Path(os.environ.get("BOT_TODO_FILE", str(HOME / ".local" / "state" / "axiom" / "todo.json")))
-RUN_LOG_DIR = Path(os.environ.get("BOT_RUN_LOG_DIR", str(HOME / ".local" / "state" / "axiom" / "runs")))
+MONITOR_NAME = os.environ.get("BOT_MONITOR_NAME", "Piston Monitor").strip() or "Piston Monitor"
+TODO_FILE = Path(os.environ.get("BOT_TODO_FILE", str(HOME / ".local" / "state" / "piston" / "todo.json")))
+RUN_LOG_DIR = Path(os.environ.get("BOT_RUN_LOG_DIR", str(HOME / ".local" / "state" / "piston" / "runs")))
 TIMESTAMP_RE = re.compile(rb'"timestamp"\s*:\s*"([^"]+)"')
 
 
@@ -102,6 +103,31 @@ def content_text(value: object) -> str:
                 return text
         return json.dumps(value, indent=2, ensure_ascii=False)
     return str(value)
+
+
+def rollout_message(obj: dict) -> tuple[str, str, str] | None:
+    """Return a normalized (role, phase, text) record for either rollout schema."""
+    payload = obj.get("payload", {})
+    if obj.get("type") in {"event_msg", None}:
+        kind = payload.get("type")
+        if kind == "user_message":
+            return "user", "", content_text(payload.get("message", ""))
+        if kind == "agent_message":
+            return "assistant", payload.get("phase", "commentary"), content_text(payload.get("message", ""))
+    if obj.get("type") == "response_item" and payload.get("type") == "message":
+        role = payload.get("role", "")
+        if role in {"user", "assistant"}:
+            return role, payload.get("phase", "commentary" if role == "assistant" else ""), content_text(payload.get("content", ""))
+    return None
+
+
+def setup_user_message(text: str) -> bool:
+    """Recognize Codex-injected setup context that must not become a wakeup."""
+    return (
+        "# AGENTS.md instructions for " in text
+        or "<environment_context>" in text
+        or text.lstrip().startswith("<recommended_plugins>")
+    )
 
 
 def load_todos(day: str) -> list[dict]:
@@ -315,12 +341,27 @@ def recent_rollout_lines(path: Path, since: dt.datetime) -> tuple[list[str], int
     started = False
     selected_has_crossing_turn = False
     selected: list[str] = []
+    seen_message_times: dict[tuple[str, str, str], dt.datetime] = {}
 
     with path.open("rb") as stream:
         for raw in stream:
-            is_user_line = b'"type":"user_message"' in raw or b'"type": "user_message"' in raw
+            try:
+                obj = json.loads(raw)
+            except (json.JSONDecodeError, UnicodeDecodeError):
+                continue
+            message = rollout_message(obj)
             match = TIMESTAMP_RE.search(raw)
             timestamp = match.group(1).decode() if match else ""
+            is_user_line = False
+            if message is not None:
+                role, phase, text = message
+                if role == "user" and not setup_user_message(text):
+                    at = dt.datetime.fromisoformat(timestamp.replace("Z", "+00:00"))
+                    key = (role, phase, text)
+                    previous = seen_message_times.get(key)
+                    if previous is None or abs((at - previous).total_seconds()) > 2:
+                        is_user_line = True
+                        seen_message_times[key] = at
 
             if is_user_line:
                 user_count += 1
@@ -358,6 +399,7 @@ def parse_rollout(thread: dict, since: dt.datetime | None = None) -> list[dict]:
     pending_tools: dict[str, dict] = {}
     prelude_entries: list[dict] = []
     prelude_start: dt.datetime | None = None
+    seen_message_times: dict[tuple[str, str, str], dt.datetime] = {}
 
     def append_entry(at: dt.datetime, entry: dict) -> None:
         nonlocal prelude_start
@@ -427,17 +469,22 @@ def parse_rollout(thread: dict, since: dt.datetime | None = None) -> list[dict]:
         event_type = obj.get("type")
         payload = obj.get("payload", {})
 
-        if event_type == "event_msg":
-            kind = payload.get("type")
-            if kind == "user_message":
-                prompt = payload.get("message", "")
-                begin_wakeup(prompt, at)
-            elif kind == "agent_message":
+        message = rollout_message(obj)
+        if message is not None:
+            role, phase, text = message
+            if role == "user" and setup_user_message(text):
+                continue
+            key = (role, phase, text)
+            previous = seen_message_times.get(key)
+            if previous is not None and abs((at - previous).total_seconds()) <= 2:
+                continue
+            seen_message_times[key] = at
+            if role == "user":
+                begin_wakeup(text, at)
+            else:
                 if current is not None:
                     current["end_iso"] = when
                     current["end_ts"] = at.timestamp()
-                phase = payload.get("phase", "commentary")
-                message = payload.get("message", "")
                 append_entry(
                     at,
                     {
@@ -445,11 +492,15 @@ def parse_rollout(thread: dict, since: dt.datetime | None = None) -> list[dict]:
                         "role": "final" if phase == "final_answer" else "commentary",
                         "ts": at.timestamp(),
                         "when": when,
-                        "html": render_markdown(message),
-                        "plain": message,
-                    }
+                        "html": render_markdown(text),
+                        "plain": text,
+                    },
                 )
-            elif kind == "task_complete":
+            continue
+
+        if event_type == "event_msg":
+            kind = payload.get("type")
+            if kind == "task_complete":
                 continue
         elif event_type == "response_item":
             kind = payload.get("type")
@@ -669,7 +720,7 @@ def write_index(days: list[dict]) -> None:
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Axiom Monitor</title>
+  <title>{MONITOR_NAME}</title>
   <link rel="icon" type="image/png" href="{FAVICON_NAME}">
   <style>
     body {{ margin: 0; font-family: "IBM Plex Sans", "Segoe UI", sans-serif; background: #f4eee2; color: #1b2428; }}
@@ -687,7 +738,7 @@ def write_index(days: list[dict]) -> None:
   </style>
 </head>
 <body>
-  <div class="topbar">Axiom Monitor index</div>
+  <div class="topbar">{MONITOR_NAME} index</div>
   <main id="days" class="wrap"></main>
   <script>
     const daysEl = document.getElementById('days');
@@ -739,7 +790,7 @@ def day_shell(day: str) -> str:
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Axiom Monitor {day}</title>
+  <title>{MONITOR_NAME} {day}</title>
   <link rel="icon" type="image/png" href="{FAVICON_NAME}">
   <style>
     :root {{

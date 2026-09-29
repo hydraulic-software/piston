@@ -20,6 +20,8 @@ This repo now includes the reusable monitor layer that was originally developed 
   - override the Codex SQLite state path
 - `BOT_MONITOR_OUTPUT_DIR`
   - override the published HTML/JSON output directory
+- `BOT_MONITOR_NAME`
+  - override the neutral `Piston Monitor` page title and topbar identity
 - `BOT_MONITOR_AVATAR`
   - override the optional favicon/avatar source image
 - `BOT_MONITOR_FAVICON_NAME`
@@ -41,7 +43,8 @@ The watcher relies on those same defaults and watches the matching paths under `
 
 ## Included, but still opinionated
 
-The shared slice keeps the existing Axiom-oriented UI structure for now:
+The shared slice keeps the existing UI structure while using neutral Piston
+paths and identity defaults:
 
 - day index plus per-day pages
 - timeline view

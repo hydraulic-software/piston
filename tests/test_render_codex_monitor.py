@@ -15,6 +15,16 @@ SPEC.loader.exec_module(MODULE)
 
 
 class RenderCodexMonitorTest(unittest.TestCase):
+    @staticmethod
+    def thread(path):
+        return {
+            "id": "thread-1",
+            "rollout_path": str(path),
+            "title": "Synthetic thread",
+            "cwd": str(Path.home()),
+            "model": "test-model",
+        }
+
     def test_recent_index_update_replaces_today_without_dropping_history(self):
         yesterday = {"day": "2026-08-31", "wakeups": [1], "segments": []}
         today = {"day": "2026-09-01", "wakeups": [1], "segments": []}
@@ -90,6 +100,108 @@ class RenderCodexMonitorTest(unittest.TestCase):
 
         self.assertEqual([current_user, current_output], lines)
         self.assertEqual(1, wakeup_index_offset)
+
+    def test_mixed_rollout_schemas_deduplicate_and_recent_matches_full(self):
+        def record(timestamp, event_type, payload):
+            return {"timestamp": timestamp, "type": event_type, "payload": payload}
+
+        records = [
+            # Codex-injected setup context is a user-role message in the new
+            # schema, but it is not an actual wakeup boundary.
+            record(
+                "2026-07-15T21:58:00Z",
+                "response_item",
+                {
+                    "type": "message",
+                    "role": "user",
+                    "content": [{"type": "input_text", "text": "<recommended_plugins>setup</recommended_plugins>"}],
+                },
+            ),
+            record("2026-07-15T21:59:00Z", "event_msg", {"type": "user_message", "message": "Old turn"}),
+            record(
+                "2026-07-15T22:00:30Z",
+                "response_item",
+                {
+                    "type": "message",
+                    "role": "assistant",
+                    "phase": "commentary",
+                    "content": [{"type": "output_text", "text": "Crossing midnight"}],
+                },
+            ),
+            record(
+                "2026-07-15T22:01:00Z",
+                "response_item",
+                {
+                    "type": "message",
+                    "role": "user",
+                    "content": [{"type": "input_text", "text": "New turn"}],
+                },
+            ),
+            # Some Codex versions emit both representations. These adjacent
+            # compatibility records must not create duplicate wakeups/prose.
+            record("2026-07-15T22:01:00Z", "event_msg", {"type": "user_message", "message": "New turn"}),
+            record(
+                "2026-07-15T22:01:10Z",
+                "response_item",
+                {
+                    "type": "message",
+                    "role": "assistant",
+                    "phase": "commentary",
+                    "content": [{"type": "output_text", "text": "Working"}],
+                },
+            ),
+            record(
+                "2026-07-15T22:01:10Z",
+                "event_msg",
+                {"type": "agent_message", "phase": "commentary", "message": "Working"},
+            ),
+            record(
+                "2026-07-15T22:01:20Z",
+                "response_item",
+                {"type": "function_call", "name": "exec_command", "arguments": '{"cmd":"true"}', "call_id": "1"},
+            ),
+            record(
+                "2026-07-15T22:01:21Z",
+                "response_item",
+                {"type": "function_call_output", "output": "ok", "call_id": "1"},
+            ),
+            record(
+                "2026-07-15T22:02:00Z",
+                "response_item",
+                {
+                    "type": "message",
+                    "role": "assistant",
+                    "phase": "final_answer",
+                    "content": [{"type": "output_text", "text": "Finished"}],
+                },
+            ),
+        ]
+
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "rollout.jsonl"
+            path.write_text("\n".join(map(json.dumps, records)) + "\n")
+            thread = self.thread(path)
+            full = MODULE.parse_rollout(thread)
+            recent = MODULE.parse_rollout(
+                thread,
+                dt.datetime(2026, 7, 15, 22, 0, tzinfo=dt.timezone.utc),
+            )
+
+        self.assertEqual(["New turn", "Old turn"], [item["prompt"] for item in full])
+        self.assertEqual(["New turn"], [item["prompt"] for item in recent])
+        current = full[0]
+        self.assertEqual(1, sum(entry.get("plain") == "Working" for entry in current["entries"]))
+        self.assertEqual(["commentary", "tool", "final"], [entry["role"] for entry in current["entries"]])
+        self.assertEqual(
+            [(entry["kind"], entry.get("role"), entry.get("plain")) for entry in current["entries"]],
+            [(entry["kind"], entry.get("role"), entry.get("plain")) for entry in recent[0]["entries"]],
+        )
+
+    def test_monitor_defaults_are_neutral_piston_paths(self):
+        self.assertEqual("Piston Monitor", MODULE.MONITOR_NAME)
+        self.assertEqual(Path.home() / ".local/state/piston/todo.json", MODULE.TODO_FILE)
+        self.assertEqual(Path.home() / ".local/state/piston/runs", MODULE.RUN_LOG_DIR)
+        self.assertIn("Piston Monitor", MODULE.day_shell("2026-09-29"))
 
     def test_typed_tool_output_is_flattened(self):
         output = [

@@ -31,5 +31,7 @@ BOT_ENVELOPE_FROM=assistant@example.com
 # BOT_RUN_LOG_DIR=/home/assistant/.local/state/piston/runs
 # BOT_CODEX_STATE_DB=/home/assistant/.codex/state_5.sqlite
 # BOT_MONITOR_OUTPUT_DIR=/home/assistant/private_html
+# BOT_MONITOR_NAME="R. Example Monitor"
+# BOT_MONITOR_AVATAR=/home/assistant/.local/share/piston/piston-avatar.png
 # TEAMCITY_BASE_URL=https://teamcity.example.com
 # TEAMCITY_API_KEY=replace-with-account-local-secret

@@ -98,6 +98,7 @@ Start from [`config/environment.example`](config/environment.example). Important
   sender address; this does not exempt inbound SMTP from aligned DKIM
 - `BOT_TODO_FILE`, `BOT_AUTONOMY_STATE_FILE`: scheduler/todo state
 - `BOT_MONITOR_OUTPUT_DIR`, `BOT_CODEX_STATE_DB`, `BOT_RUN_LOG_DIR`: monitor inputs/outputs
+- `BOT_MONITOR_NAME`, `BOT_MONITOR_AVATAR`: visible monitor identity and optional favicon source
 - `TEAMCITY_BASE_URL`, `TEAMCITY_API_KEY`: optional TeamCity integration
 
 ## Safety Model
