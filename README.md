@@ -93,6 +93,9 @@ Start from [`config/environment.example`](config/environment.example). Important
 - `BOT_ALLOWED_FROM_DOMAINS`, `BOT_MAILDIR`: inbound filtering and Maildir location
 - `BOT_REQUIRE_ALIGNED_DKIM`, `BOT_AUTH_RESULTS_ID`: require a trusted local
   `Authentication-Results` header with `dkim=pass` aligned exactly to `From`
+- `BOT_TRUST_LOCAL_SUBMISSION`, `BOT_LOCAL_MAIL_DOMAIN`: optionally accept a
+  same-host Postfix submission when its trusted UID maps exactly to the visible
+  sender address; this does not exempt inbound SMTP from aligned DKIM
 - `BOT_TODO_FILE`, `BOT_AUTONOMY_STATE_FILE`: scheduler/todo state
 - `BOT_MONITOR_OUTPUT_DIR`, `BOT_CODEX_STATE_DB`, `BOT_RUN_LOG_DIR`: monitor inputs/outputs
 - `TEAMCITY_BASE_URL`, `TEAMCITY_API_KEY`: optional TeamCity integration

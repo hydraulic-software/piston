@@ -22,6 +22,10 @@ BOT_ENVELOPE_FROM=assistant@example.com
 # signing domain exactly matches the visible From domain.
 # BOT_REQUIRE_ALIGNED_DKIM=1
 # BOT_AUTH_RESULTS_ID=mail.example.com
+# Optionally accept same-host Postfix submissions only when the trusted top
+# Received hop identifies a Unix UID whose username exactly matches From.
+# BOT_TRUST_LOCAL_SUBMISSION=1
+# BOT_LOCAL_MAIL_DOMAIN=hq.example.com
 # BOT_TODO_FILE=/home/assistant/.local/state/piston/todo.json
 # BOT_AUTONOMY_STATE_FILE=/home/assistant/.local/state/piston/autonomy-schedule.json
 # BOT_RUN_LOG_DIR=/home/assistant/.local/state/piston/runs
