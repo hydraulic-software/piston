@@ -43,6 +43,19 @@ log "waiting for lock ${lock_file}"
 flock 9
 log "acquired lock"
 
+version_helper="${HOME}/.local/bin/piston-update-codex"
+if [[ ! -x "${version_helper}" ]]; then
+  log "Codex version helper not found at ${version_helper}"
+  exit 1
+fi
+if version_status="$("${version_helper}" --check 2>&1)"; then
+  log "${version_status}"
+else
+  log "${version_status}"
+  log "refusing to run with a Codex version that differs from Piston; run piston-update-codex"
+  exit 1
+fi
+
 if [[ "${mode}" == "mail" ]]; then
   mail_context_helper="${HOME}/.local/bin/piston-mail-context"
   if [[ -x "${mail_context_helper}" ]]; then

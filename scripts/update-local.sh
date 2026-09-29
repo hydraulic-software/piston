@@ -68,6 +68,7 @@ mkdir -p "$release_root" "$BIN_TARGET" "$SKILLS_ROOT"
 if [[ ! -d "$release_dir" ]]; then
   mkdir -p "$release_dir"
   cp -R "$REPO_ROOT/bin" "$release_dir/bin"
+  cp -R "$REPO_ROOT/config" "$release_dir/config"
   cp -R "$REPO_ROOT/skills" "$release_dir/skills"
   if [[ -d "$REPO_ROOT/systemd" ]]; then
     cp -R "$REPO_ROOT/systemd" "$release_dir/systemd"

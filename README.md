@@ -33,7 +33,7 @@ Copy mode is recommended for a first evaluation. Once the setup is understood, [
 - `bin/piston-send-markdown-mail`: multipart plain-text/HTML mail with reply threading and named attachments
 - `bin/piston-teamcity-watch`: TeamCity build polling and log tails
 - `bin/piston-review-followup`: opinionated review-worktree/TeamCity follow-up helper
-- `bin/piston-update-codex`: staged, exact-version Codex CLI upgrades
+- `bin/piston-update-codex`: staged upgrades to Piston's pinned Codex CLI version
 - `systemd/user/`: example user services, timers, and Maildir path watcher
 - `skills/markdown-email/`: companion Codex skill for reliable email formatting
 

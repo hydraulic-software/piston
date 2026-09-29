@@ -46,6 +46,20 @@ if ! grep -q -- 'repeated, stable workflows' "$REPO_ROOT/bin/piston-codex-runner
   exit 1
 fi
 
+if [[ ! "$(<"$REPO_ROOT/config/codex-version")" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+  echo "config/codex-version is not an exact stable version" >&2
+  exit 1
+fi
+
+fake_bin="$(mktemp -d)"
+cat >"$fake_bin/codex" <<EOF
+#!/usr/bin/env bash
+echo "codex-cli $(<"$REPO_ROOT/config/codex-version")"
+EOF
+chmod +x "$fake_bin/codex"
+BOT_CODEX_COMMAND="$fake_bin/codex" "$REPO_ROOT/bin/piston-update-codex" --check >/dev/null
+rm -rf "$fake_bin"
+
 echo "[4/5] Throwaway install smoke test"
 tmpdir="$(mktemp -d)"
 trap 'rm -rf "$tmpdir"' EXIT

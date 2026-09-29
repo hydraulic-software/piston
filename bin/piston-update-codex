@@ -3,27 +3,69 @@ set -euo pipefail
 
 usage() {
   cat <<'EOF'
-Usage: piston-update-codex VERSION
+Usage: piston-update-codex [--check] [VERSION]
 
-Install an exact Codex CLI version into ${BOT_CODEX_INSTALL_DIR:-~/codex}.
-The release is staged and verified before replacing the live tree. The prior
-tree is retained as a timestamped sibling backup.
+Install the Codex CLI version pinned by Piston, or an explicit exact VERSION,
+into ${BOT_CODEX_INSTALL_DIR:-~/codex}. The release is staged and verified
+before replacing the live tree. The prior tree is retained as a timestamped
+sibling backup.
+
+With --check, verify that the Codex command on PATH matches the expected
+version without changing anything.
 EOF
 }
 
-if [[ $# -ne 1 || "$1" == "-h" || "$1" == "--help" ]]; then
+script_path="$(readlink -f "${BASH_SOURCE[0]}")"
+script_dir="$(cd "$(dirname "$script_path")" && pwd)"
+pin_file="${BOT_CODEX_VERSION_FILE:-${script_dir}/../config/codex-version}"
+check_only=0
+
+if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
   usage
-  [[ $# -eq 1 ]] && exit 0
+  exit 0
+fi
+if [[ "${1:-}" == "--check" ]]; then
+  check_only=1
+  shift
+fi
+if [[ $# -gt 1 ]]; then
+  usage >&2
   exit 2
 fi
 
-version="$1"
+if [[ $# -eq 1 ]]; then
+  version="$1"
+elif [[ -r "$pin_file" ]]; then
+  version="$(tr -d '[:space:]' < "$pin_file")"
+else
+  echo "Piston Codex version pin not found: $pin_file" >&2
+  exit 1
+fi
 if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?$ ]]; then
   echo "Expected an exact Codex version, got: $version" >&2
   exit 2
 fi
 
+if [[ "$check_only" == "1" ]]; then
+  codex_command="${BOT_CODEX_COMMAND:-codex}"
+  if ! actual_version="$("$codex_command" --version 2>/dev/null)"; then
+    echo "Unable to run Codex command: $codex_command" >&2
+    exit 1
+  fi
+  if [[ "$actual_version" != "codex-cli ${version}" ]]; then
+    echo "Codex version mismatch: expected ${version}, found ${actual_version}" >&2
+    exit 1
+  fi
+  echo "Codex version matches Piston pin: ${version}"
+  exit 0
+fi
+
 install_dir="${BOT_CODEX_INSTALL_DIR:-${HOME}/codex}"
+bin_link="${BOT_CODEX_BIN_LINK:-${HOME}/.local/bin/codex}"
+if [[ -e "$bin_link" && ! -L "$bin_link" ]]; then
+  echo "Refusing to replace non-symlink Codex command: $bin_link" >&2
+  exit 1
+fi
 parent_dir="$(dirname "$install_dir")"
 base_name="$(basename "$install_dir")"
 mkdir -p "$parent_dir"
@@ -65,8 +107,12 @@ if [[ "$installed_version" != "codex-cli ${version}" ]]; then
   exit 1
 fi
 
+mkdir -p "$(dirname "$bin_link")"
+ln -sfn "$installed_binary" "$bin_link"
+
 complete=1
 echo "Installed ${installed_version} in ${install_dir}"
+echo "Selected managed command at ${bin_link}"
 if [[ -n "$backup_dir" ]]; then
   echo "Previous installation retained at ${backup_dir}"
 fi
