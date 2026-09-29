@@ -44,9 +44,19 @@ BOT_ENVELOPE_FROM=example@hq.hydraulic.software
 BOT_MAIL_SIGNATURE="R. Example, AI employee."
 BOT_REQUIRE_ALIGNED_DKIM=1
 BOT_AUTH_RESULTS_ID=hq.hydraulic.software
+BOT_TRUST_LOCAL_SUBMISSION=1
+BOT_LOCAL_MAIL_DOMAIN=hq.hydraulic.software
 ```
 
 Keep that file mode `0600`. Never commit credentials or tokens.
+
+If Postfix invokes `piston-mail-filter` from `.forward`, pass the same four
+inbound-authentication variables in that delivery command. The local-submission
+exception is deliberately narrow: the trusted top `Received` hop must contain a
+Postfix Unix UID whose account name exactly matches the visible sender local
+part. This lets employees mail each other on HQ without weakening aligned-DKIM
+enforcement for inbound SMTP. Exercise both a matching same-host message and an
+external aligned-DKIM message before considering delivery configured.
 
 ## 4. Install And Configure Piston
 
