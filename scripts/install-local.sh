@@ -106,6 +106,8 @@ fi
 
 echo "Installed skill: ${SKILL_TARGET}"
 
+python3 "$REPO_ROOT/bin/piston-update-agent-instructions"
+
 if [[ "$INSTALL_SYSTEMD" == "1" ]]; then
   mkdir -p "$SYSTEMD_TARGET"
   for unit in "$REPO_ROOT"/systemd/user/*; do

@@ -1,0 +1,35 @@
+#!/usr/bin/env python3
+"""Refresh only Piston's marked block; preserve all employee-owned policies."""
+import os
+from pathlib import Path
+
+START = "<!-- piston-managed:start -->"
+END = "<!-- piston-managed:end -->"
+BLOCK = """## Piston managed operating guidance
+
+- Recurring tasks: `piston-todo schedule ID \"Task with definition of done\" --next-due YYYY-MM-DD` registers a monthly schedule; `piston-todo schedules` lists schedules.
+- The autonomy scheduler materializes due work once. Complete an occurrence with `piston-todo done ID` to advance its schedule. Do not keep duplicate per-ticket reminders for routine scheduled sweeps.
+- The HTML monitor shows future schedules, next due dates, and active occurrences. Scheduling creates review work, never authorizes external actions or automatic issue closure.
+- Managed upgrades refresh only this marked guidance block. Keep identity, permissions, communication policy and event history outside it.
+"""
+
+
+def update(path: Path) -> None:
+    if path.is_symlink():
+        raise SystemExit(f"refusing to rewrite symlink: {path}")
+    text = path.read_text() if path.exists() else ""
+    if text.count(START) != text.count(END) or text.count(START) > 1:
+        raise SystemExit(f"ambiguous Piston markers in {path}; no change")
+    block = START + "\n" + BLOCK + END
+    if START in text:
+        begin, finish = text.index(START), text.index(END) + len(END)
+        if finish < begin:
+            raise SystemExit(f"reversed Piston markers in {path}; no change")
+        text = text[:begin] + block + text[finish:]
+    else:
+        text = text.rstrip() + "\n\n" + block + "\n"
+    path.write_text(text)
+
+
+if __name__ == "__main__":
+    update(Path(os.environ.get("PISTON_AGENT_INSTRUCTIONS", str(Path.home() / "AGENTS.md"))))

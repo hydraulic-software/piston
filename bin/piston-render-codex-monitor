@@ -130,6 +130,23 @@ def setup_user_message(text: str) -> bool:
     )
 
 
+def load_schedules() -> list[dict]:
+    try:
+        payload = json.loads(TODO_FILE.read_text())
+    except (OSError, ValueError):
+        return []
+    result = []
+    for schedule in payload.get("schedules", []):
+        if not isinstance(schedule, dict):
+            continue
+        active = next((i for i in payload.get("items", []) if isinstance(i, dict)
+                       and i.get("schedule_id") == schedule.get("id") and i.get("status") != "done"), None)
+        result.append({"id": str(schedule.get("id", "")), "text": str(schedule.get("text", "")),
+                       "cadence": str(schedule.get("cadence", "")), "next_due": str(schedule.get("next_due", "")),
+                       "occurrence": None if active is None else {"id": active["id"], "status": active["status"]}})
+    return result
+
+
 def load_todos(day: str) -> list[dict]:
     if not TODO_FILE.exists():
         return []
@@ -921,6 +938,15 @@ def day_shell(day: str) -> str:
       `;
     }}
 
+    function renderSchedules(data) {{
+      const schedules = data.schedules || [];
+      return `<section class="todos"><div class="todos-head"><h2>Scheduled tasks</h2><span>live recurring schedules</span></div>
+        ${{schedules.length ? schedules.map(s => `<article class="todo"><span class="todo-tier">${{escapeHtml(s.cadence)}}</span>
+          <div class="todo-body"><div class="todo-text">${{escapeHtml(s.text)}}</div>
+          <div class="todo-meta">${{escapeHtml(s.id)}} · next due ${{escapeHtml(s.next_due)}}${{s.occurrence ? ' · ' + escapeHtml(s.occurrence.status + ': ' + s.occurrence.id) : ''}}</div></div></article>`).join('')
+          : '<div class="todo-empty">No recurring schedules recorded.</div>'}}</section>`;
+    }}
+
     function renderTodos(data) {{
       const todos = data.todos || [];
       if (!todos.length) {{
@@ -1033,7 +1059,7 @@ def day_shell(day: str) -> str:
       feedEl.classList.add('updating');
       requestAnimationFrame(() => {{
         timelineWrapEl.innerHTML = renderTimeline(data);
-        todosEl.innerHTML = renderTodos(data);
+        todosEl.innerHTML = renderTodos(data) + renderSchedules(data);
         feedEl.innerHTML = data.wakeups.map(wakeup => {{
           const previous = initialized ? (knownEntryCounts[wakeup.id] || 0) : wakeup.display_entries.length;
           const newCount = Math.max(wakeup.display_entries.length - previous, 0);
@@ -1062,6 +1088,7 @@ def write_day(day: dict) -> None:
         "day": day["day"],
         "segments": day["segments"],
         "todos": day["todos"],
+        "schedules": load_schedules(),
         "wakeups": day["wakeups"],
     }
     (OUTPUT_DIR / f"{day['day']}.json").write_text(json.dumps(payload, indent=2, ensure_ascii=False))

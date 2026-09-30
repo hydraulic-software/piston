@@ -126,3 +126,4 @@ if [[ "$INSTALL_SYSTEMD" == "1" ]]; then
 fi
 
 echo "Managed release ready: ${release_dir}"
+python3 "$current_link/bin/piston-update-agent-instructions"

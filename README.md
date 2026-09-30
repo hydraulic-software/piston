@@ -52,6 +52,12 @@ All helper board updates use a shared lock. Schedules create reminders only,
 never perform external actions. Cadence currently supports monthly tasks only;
 schedule edits/removal use the JSON board while no helper is writing it.
 
+The monitor includes a live Scheduled tasks section with cadence, next due
+date and active occurrence. Install/upgrade refreshes a marked Piston guidance
+block in home `AGENTS.md`, preserving all employee-owned text outside it.
+Malformed markers or a symlink cause a safe refusal rather than an overwrite.
+Set `PISTON_AGENT_INSTRUCTIONS` to select a different instructions path.
+
 Core automation expects:
 
 - Linux with `systemd --user`

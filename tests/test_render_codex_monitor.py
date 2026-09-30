@@ -15,6 +15,23 @@ SPEC.loader.exec_module(MODULE)
 
 
 class RenderCodexMonitorTest(unittest.TestCase):
+    def test_future_schedules_and_active_occurrence_are_exposed(self):
+        with tempfile.TemporaryDirectory() as directory:
+            old = MODULE.TODO_FILE
+            MODULE.TODO_FILE = Path(directory) / "todo.json"
+            try:
+                MODULE.TODO_FILE.write_text(json.dumps({"schedules": [{"id": "monthly", "text": "<review>",
+                    "cadence": "monthly", "next_due": "2099-01-31"}], "items": [
+                    {"id": "occurrence", "schedule_id": "monthly", "status": "started"}]}))
+                schedule = MODULE.load_schedules()[0]
+                self.assertEqual("2099-01-31", schedule["next_due"])
+                self.assertEqual({"id": "occurrence", "status": "started"}, schedule["occurrence"])
+                shell = MODULE.day_shell("2026-09-30")
+                self.assertIn("Scheduled tasks", shell)
+                self.assertIn("escapeHtml(s.text)", shell)
+            finally:
+                MODULE.TODO_FILE = old
+
     @staticmethod
     def thread(path):
         return {
