@@ -39,6 +39,19 @@ Copy mode is recommended for a first evaluation. Once the setup is understood, [
 
 ## Requirements
 
+### Recurring tasks
+
+`piston-todo schedule monthly-triage "Review open issues; done when outcomes are recorded" --next-due 2026-10-30`
+creates a monthly schedule in the same JSON board. `piston-todo schedules` lists
+schedules. The autonomy timer's `due` check runs `piston-todo tick` before counting
+work, so due occurrences become ordinary todos even during routine six-hour
+cadence. Completion with `piston-todo done ID` advances to the next future monthly
+date. Month-end dates retain their original day where possible. Missed months
+produce one task, not a catch-up storm; unfinished tasks are never duplicated.
+All helper board updates use a shared lock. Schedules create reminders only,
+never perform external actions. Cadence currently supports monthly tasks only;
+schedule edits/removal use the JSON board while no helper is writing it.
+
 Core automation expects:
 
 - Linux with `systemd --user`

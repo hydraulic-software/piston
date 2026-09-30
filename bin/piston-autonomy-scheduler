@@ -4,6 +4,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import subprocess
 import tempfile
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -125,6 +126,7 @@ def cmd_status(_args: argparse.Namespace) -> int:
 
 
 def cmd_due(_args: argparse.Namespace) -> int:
+    subprocess.run([str(Path(__file__).resolve().with_name("piston-todo")), "tick"], check=True)
     now = datetime.now(timezone.utc)
     decision, last_run, elapsed = build_status(now)
     due = last_run is None or elapsed >= decision.interval_seconds

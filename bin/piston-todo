@@ -2,6 +2,8 @@
 from __future__ import annotations
 
 import argparse
+import calendar
+import fcntl
 import json
 import os
 import re
@@ -162,8 +164,64 @@ def cmd_set_status(args: argparse.Namespace, status: str) -> int:
     data = load_data()
     item = find_item(data, args.id)
     set_status(item, status)
+    # Complete an occurrence and advance its schedule in the same atomic write.
+    if status == "done" and item.get("schedule_id"):
+        for schedule in data.get("schedules", []):
+            if schedule["id"] == item["schedule_id"] and schedule.get("occurrence_id") == item["id"]:
+                due = date.fromisoformat(schedule["next_due"])
+                while due <= date.today():
+                    due = advance_month(due, schedule["day"])
+                schedule["next_due"] = due.isoformat()
+                schedule.pop("occurrence_id", None)
     save_data(data)
     print(f"{item['id']}\t{item['status']}")
+    return 0
+
+
+def advance_month(value: date, day: int) -> date:
+    year = value.year + (value.month == 12)
+    month = value.month % 12 + 1
+    return date(year, month, min(day, calendar.monthrange(year, month)[1]))
+
+
+def cmd_schedule(args: argparse.Namespace) -> int:
+    due = date.fromisoformat(args.next_due)
+    data = load_data()
+    schedules = data.setdefault("schedules", [])
+    if any(s["id"] == args.id for s in schedules):
+        raise SystemExit(f"schedule already exists: {args.id}")
+    schedules.append({"id": args.id, "text": args.text, "cadence": "monthly",
+                      "next_due": due.isoformat(), "day": due.day, "tier": args.tier})
+    save_data(data)
+    print(args.id)
+    return 0
+
+
+def cmd_schedules(_args: argparse.Namespace) -> int:
+    print(json.dumps(load_data().get("schedules", []), indent=2))
+    return 0
+
+
+def cmd_tick(_args: argparse.Namespace) -> int:
+    data = load_data()
+    changed = False
+    for schedule in data.get("schedules", []):
+        if date.fromisoformat(schedule["next_due"]) > date.today():
+            continue
+        # An unfinished occurrence blocks catch-up storms, even after months offline.
+        if any(i.get("schedule_id") == schedule["id"] and i["status"] != "done" for i in data["items"]):
+            continue
+        item_id = f"recurring:{schedule['id']}:{schedule['next_due']}"
+        if any(i["id"] == item_id for i in data["items"]):
+            continue
+        data["items"].append({"id": item_id, "text": schedule["text"], "status": "pending",
+                              "tier": schedule["tier"], "updated_day": today(),
+                              "schedule_id": schedule["id"]})
+        schedule["occurrence_id"] = item_id
+        changed = True
+        print(item_id)
+    if changed:
+        save_data(data)
     return 0
 
 
@@ -192,6 +250,15 @@ def cmd_set_progress(args: argparse.Namespace) -> int:
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="piston-todo", description=f"Edit {TODO_FILE}")
     sub = parser.add_subparsers(dest="command", required=True)
+
+    p_schedule = sub.add_parser("schedule", help="Create a monthly recurring task")
+    p_schedule.add_argument("id")
+    p_schedule.add_argument("text", help="Task including its definition of done")
+    p_schedule.add_argument("--next-due", required=True, help="ISO local date")
+    p_schedule.add_argument("--tier", choices=sorted(VALID_TIERS), default="now")
+    p_schedule.set_defaults(func=cmd_schedule)
+    sub.add_parser("schedules", help="List recurring schedules").set_defaults(func=cmd_schedules)
+    sub.add_parser("tick", help="Materialize due recurring tasks once").set_defaults(func=cmd_tick)
 
     p_list = sub.add_parser("list", help="List todo items")
     p_list.add_argument("--active", action="store_true", help="Only show pending and started items")
@@ -241,7 +308,12 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv: list[str]) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
-    return args.func(args)
+    # Scheduler ticks and interactive updates share a lock; atomic rename alone
+    # would otherwise lose a concurrent add or completion.
+    TODO_FILE.parent.mkdir(parents=True, exist_ok=True)
+    with TODO_FILE.with_suffix(".lock").open("a") as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        return args.func(args)
 
 
 if __name__ == "__main__":
