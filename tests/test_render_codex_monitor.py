@@ -15,6 +15,23 @@ SPEC.loader.exec_module(MODULE)
 
 
 class RenderCodexMonitorTest(unittest.TestCase):
+    def test_shell_envelope_is_readable_and_plain_json_is_preserved(self):
+        raw = json.dumps({"output": "hello\n", "exit_code": 2, "wall_time_seconds": 0.5})
+        result = MODULE.readable_tool_output(raw)
+        self.assertEqual("hello\n", result["text"])
+        self.assertEqual("exit 2 · 0.5s", result["status"])
+        self.assertIn('"ticket": 42', MODULE.readable_tool_output('{"ticket":42}')["text"])
+        self.assertIn('"output": "user data"', MODULE.readable_tool_output('{"output":"user data"}')["text"])
+        prefixed = MODULE.readable_tool_output('Script completed\n{"chunk_id":"abc","output":"decoded","exit_code":0}')
+        self.assertEqual("Script completed\n\ndecoded", prefixed["text"])
+
+    def test_multiple_results_and_partial_text(self):
+        raw = '{"output":"first","exit_code":0}{"output":"second","session_id":12} tail'
+        result = MODULE.readable_tool_output(raw)
+        self.assertEqual("first\n\nsecond\n\ntail", result["text"])
+        self.assertIn("running session 12", result["status"])
+        self.assertEqual("<script>plain</script>", MODULE.readable_tool_output("<script>plain</script>")["text"])
+
     def test_future_schedules_and_active_occurrence_are_exposed(self):
         with tempfile.TemporaryDirectory() as directory:
             old = MODULE.TODO_FILE

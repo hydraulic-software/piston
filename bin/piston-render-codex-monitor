@@ -315,6 +315,36 @@ def pretty_json_string(value: str) -> str:
         return value
 
 
+def readable_tool_output(raw: str) -> dict:
+    """Decode only known result envelopes; ordinary JSON remains ordinary output."""
+    parts, metadata = [], []
+    decoder = json.JSONDecoder()
+    rest = raw.strip()
+    envelope = re.search(r'\{"chunk_id"\s*:', rest)
+    if envelope and envelope.start() > 0:
+        parts.append(rest[:envelope.start()].strip())
+        rest = rest[envelope.start():]
+    while rest:
+        try:
+            value, end = decoder.raw_decode(rest)
+        except ValueError:
+            parts.append(rest)
+            break
+        if (isinstance(value, dict) and isinstance(value.get("output"), str)
+                and any(key in value for key in ("chunk_id", "exit_code", "wall_time_seconds", "session_id"))):
+            parts.append(value["output"])
+            if value.get("exit_code") is not None:
+                metadata.append(f"exit {value['exit_code']}")
+            if value.get("wall_time_seconds") is not None:
+                metadata.append(f"{value['wall_time_seconds']}s")
+            if value.get("session_id") is not None:
+                metadata.append(f"running session {value['session_id']}")
+        else:
+            parts.append(json.dumps(value, indent=2, ensure_ascii=False))
+        rest = rest[end:].lstrip()
+    return {"text": "\n\n".join(parts), "status": " · ".join(metadata)}
+
+
 def tool_detail(name: str, body: str) -> str:
     commands = tool_commands(name, body)
     if commands:
@@ -555,6 +585,7 @@ def parse_rollout(thread: dict, since: dt.datetime | None = None) -> list[dict]:
                 pending_tools[payload.get("call_id", "")] = entry
             elif kind in {"function_call_output", "custom_tool_call_output"}:
                 output = content_text(payload.get("output", ""))
+                readable = readable_tool_output(output)
                 entry = pending_tools.get(payload.get("call_id", ""))
                 if entry is None:
                     entry = {
@@ -573,6 +604,8 @@ def parse_rollout(thread: dict, since: dt.datetime | None = None) -> list[dict]:
                     entry["ts"] = at.timestamp()
                     entry["when"] = when
                     entry["summary"] = summarize_text(entry["summary"], 72)
+                entry["readable_output"] = readable["text"]
+                entry["result_status"] = readable["status"]
 
     bootstrap_wakeup()
 
@@ -1003,17 +1036,17 @@ def day_shell(day: str) -> str:
       if (entry.kind === 'tool_group') {{
         const openAttr = openToolGroups.has(entry.id) ? ' open' : '';
         const summary = entry.items.length === 1 ? entry.items[0].summary : (entry.items.length + ' commands');
-        const body = entry.items.map(item => {{
-          const sections = [item.summary];
-          if (item.details && item.details !== item.summary) sections.push('Command:\\n' + item.details);
-          if (item.output) sections.push(item.output);
-          return sections.join('\\n\\n').trim();
-        }}).join('\\n\\n');
+        const body = entry.items.map(item => `
+          <section><div class="entry-head"><span class="label">${{escapeHtml(item.title || 'tool')}}</span>
+          <span class="time">${{escapeHtml(item.when || '')}} · ${{escapeHtml(item.result_status || 'result recorded')}}</span></div>
+          <div class="todo-meta">Command / action</div><pre>${{escapeHtml(item.details || item.summary)}}</pre>
+          <div class="todo-meta">Result</div><pre>${{escapeHtml(item.readable_output ?? item.output ?? '')}}</pre>
+          ${{item.output && item.readable_output !== item.output ? `<details><summary>Raw result</summary><pre>${{escapeHtml(item.output)}}</pre></details>` : ''}}</section>`).join('');
         return `
           <article class="entry tool${{extraClass}}">
             <details data-tool-group="${{escapeHtml(entry.id)}}"${{openAttr}}>
               <summary>${{escapeHtml(summary)}}</summary>
-              <pre>${{escapeHtml(body)}}</pre>
+              ${{body}}
             </details>
           </article>
         `;
