@@ -15,6 +15,12 @@ SPEC.loader.exec_module(MODULE)
 
 
 class RenderCodexMonitorTest(unittest.TestCase):
+    def test_command_cards_have_scoped_spacing_and_dividers(self):
+        shell = MODULE.day_shell("2026-10-01")
+        self.assertIn('<section class="tool-result">', shell)
+        self.assertIn('.tool-result + .tool-result {', shell)
+        self.assertIn('border-top: 1px solid var(--tool-line)', shell)
+
     def test_shell_envelope_is_readable_and_plain_json_is_preserved(self):
         raw = json.dumps({"output": "hello\n", "exit_code": 2, "wall_time_seconds": 0.5})
         result = MODULE.readable_tool_output(raw)
