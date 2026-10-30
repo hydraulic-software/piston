@@ -141,6 +141,31 @@ class RenderCodexMonitorTest(unittest.TestCase):
         self.assertEqual([current_user, current_output], lines)
         self.assertEqual(1, wakeup_index_offset)
 
+    def test_unicode_separators_and_partial_records_do_not_break_rendering(self):
+        user = {"timestamp": "2026-07-15T22:01:00Z", "type": "event_msg",
+                "payload": {"type": "user_message", "message": "Current turn"}}
+        output = {"timestamp": "2026-07-15T22:01:10Z", "type": "event_msg",
+                  "payload": {"type": "agent_message", "message": "before\u2028middle\u2029after"}}
+        end = {"timestamp": "2026-07-15T22:01:20Z", "type": "event_msg",
+               "payload": {"type": "agent_message", "message": "Completed later"}}
+        encoded_end = json.dumps(end).encode()
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "rollout.jsonl"
+            prefix = (json.dumps(user).encode() + b"\n" + b"invalid-utf8-\xff\n" +
+                      json.dumps(output, ensure_ascii=False).encode() + b"\n")
+            path.write_bytes(prefix + encoded_end[:30])
+            thread = self.thread(path)
+            full = MODULE.parse_rollout(thread)
+            recent = MODULE.parse_rollout(thread, dt.datetime(2026, 7, 15, 22, 0, tzinfo=dt.timezone.utc))
+            self.assertEqual(full, recent)
+            self.assertEqual("before\u2028middle\u2029after", full[0]["entries"][0]["plain"])
+            # Completing the tail must expose it on the next render, without
+            # rewriting or dropping a valid preceding record.
+            with path.open("ab") as stream:
+                stream.write(encoded_end[30:] + b"\n")
+            completed = MODULE.parse_rollout(thread)
+            self.assertEqual("Completed later", completed[0]["entries"][-1]["plain"])
+
     def test_mixed_rollout_schemas_deduplicate_and_recent_matches_full(self):
         def record(timestamp, event_type, payload):
             return {"timestamp": timestamp, "type": event_type, "payload": payload}
