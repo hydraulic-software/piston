@@ -507,10 +507,20 @@ def parse_rollout(thread: dict, since: dt.datetime | None = None) -> list[dict]:
     if since is not None:
         lines, wakeup_index_offset = recent_rollout_lines(path, since)
     else:
-        lines = path.read_text().splitlines()
+        # JSONL records are delimited by LF, not Unicode text separators.
+        # U+2028/U+2029 are valid unescaped characters inside JSON strings.
+        lines = path.read_bytes().split(b"\n")
         wakeup_index_offset = 0
     for raw in lines:
-        obj = json.loads(raw)
+        if not raw.strip():
+            continue
+        try:
+            obj = json.loads(raw)
+        except (json.JSONDecodeError, UnicodeDecodeError):
+            # A live writer may leave a partial tail. Preserve the source and
+            # retry it on the next render; never log potentially private content.
+            print(f"Skipping malformed rollout record in {path.name}", file=sys.stderr)
+            continue
         at = iso_to_local_dt(obj["timestamp"])
         when = dt_string(at)
         event_type = obj.get("type")
