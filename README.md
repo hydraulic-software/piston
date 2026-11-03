@@ -110,6 +110,35 @@ Start from [`config/environment.example`](config/environment.example). Important
 - `BOT_CODEX_MODEL`: optional model override; unset uses the Codex default
 - `BOT_MAIL_FROM`, `BOT_ENVELOPE_FROM`, `BOT_SENDMAIL`: outbound identity and transport
 - `BOT_ALLOWED_FROM_DOMAINS`, `BOT_MAILDIR`: inbound filtering and Maildir location
+- `BOT_MAIL_SHARED_CONTACTS`: optional administrator-provisioned shared UTF-8
+  file of exact sender addresses (one per line, ending in LF). All employee
+  filters must use the same file. Reads/writes use advisory locking and updates
+  are append-only/deduplicated; its parent must not be writable by outsiders.
+- `BOT_MAIL_INTRODUCERS`: comma-separated exact addresses allowed to introduce
+  external To/Cc recipients through authenticated mail. Learned contacts cannot
+  introduce others, never grant whole-domain access, and still require aligned
+  DKIM or the configured authenticated-local identity. This does not authorize
+  outbound customer contact. These settings must reach the delivery filter
+  (for HQ, `.forward` environment), not merely the Codex service environment.
+
+Example shared-file provisioning by the administrator (replace employee names):
+
+```sh
+groupadd --system piston-mail-contacts
+install -d -o root -g piston-mail-contacts -m 0750 /var/lib/piston-mail
+touch /var/lib/piston-mail/contacts
+chown root:piston-mail-contacts /var/lib/piston-mail/contacts
+chmod 0660 /var/lib/piston-mail/contacts
+usermod -aG piston-mail-contacts axiom
+usermod -aG piston-mail-contacts daneel
+```
+
+Configure each delivery filter with
+`BOT_MAIL_SHARED_CONTACTS=/var/lib/piston-mail/contacts` and the actual trusted
+introducer address in `BOT_MAIL_INTRODUCERS`. Refresh delivery-process group
+membership and test both accounts. Do not use a world-writable file. Missing or
+unwritable configured files fail delivery rather than silently losing shared
+updates; monitor mail queues. Existing messages are not automatically replayed.
 - `BOT_REQUIRE_ALIGNED_DKIM`, `BOT_AUTH_RESULTS_ID`: require a trusted local
   `Authentication-Results` header with `dkim=pass` aligned exactly to `From`
 - `BOT_TRUST_LOCAL_SUBMISSION`, `BOT_LOCAL_MAIL_DOMAIN`: optionally accept a

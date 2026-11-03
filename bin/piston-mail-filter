@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import email
 import email.utils
+import fcntl
 import mailbox
 import os
 from pathlib import Path
@@ -21,6 +22,50 @@ REQUIRE_ALIGNED_DKIM = os.environ.get("BOT_REQUIRE_ALIGNED_DKIM", "").lower() in
 AUTH_RESULTS_ID = os.environ.get("BOT_AUTH_RESULTS_ID", "").strip().lower()
 TRUST_LOCAL_SUBMISSION = os.environ.get("BOT_TRUST_LOCAL_SUBMISSION", "").lower() in {"1", "true", "yes"}
 LOCAL_MAIL_DOMAIN = os.environ.get("BOT_LOCAL_MAIL_DOMAIN", "").strip().lower()
+SHARED_CONTACTS = os.environ.get("BOT_MAIL_SHARED_CONTACTS", "")
+INTRODUCERS = {x.strip().lower() for x in os.environ.get("BOT_MAIL_INTRODUCERS", "").split(",") if x.strip()}
+
+
+def single_sender(raw_message: bytes) -> str:
+    msg = email.message_from_bytes(raw_message)
+    addresses = email.utils.getaddresses(msg.get_all("From", []))
+    return addresses[0][1].lower() if len(addresses) == 1 else ""
+
+
+def shared_contacts(additions: set[str] | None = None) -> set[str]:
+    if not SHARED_CONTACTS:
+        return set()
+    # Provisioned by an administrator in a trusted directory. Never create an
+    # accidentally account-local substitute or replace its inode/permissions.
+    with open(SHARED_CONTACTS, "r+" if additions else "r", encoding="utf-8") as handle:
+        fcntl.flock(handle, fcntl.LOCK_EX if additions else fcntl.LOCK_SH)
+        contacts = {line.strip().lower() for line in handle if line.strip()}
+        new = (additions or set()) - contacts
+        if new:
+            handle.seek(0, os.SEEK_END)
+            handle.write("".join(address + "\n" for address in sorted(new)))
+            handle.flush()
+            os.fsync(handle.fileno())
+        return contacts | new
+
+
+def learn_contacts(raw_message: bytes) -> None:
+    if single_sender(raw_message) not in INTRODUCERS:
+        return
+    # Enrollment is always authenticated, even if a deployment disables its
+    # ordinary domain filter. Recipient headers alone never confer authority.
+    if not dkim_authenticated(raw_message)[0] and not local_submission_authenticated(raw_message)[0]:
+        return
+    msg = email.message_from_bytes(raw_message)
+    recipients = email.utils.getaddresses(msg.get_all("To", []) + msg.get_all("Cc", []))
+    additions = set()
+    for _, address in recipients:
+        address = address.lower()
+        if re.fullmatch(r"[a-z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-z0-9.-]+\.[a-z]{2,}", address):
+            if address.rsplit("@", 1)[1] not in ALLOWED_DOMAINS:
+                additions.add(address)
+    if additions:
+        shared_contacts(additions)
 
 
 def load_allowed_domains() -> set[str]:
@@ -55,6 +100,8 @@ def sender_allowed(raw_message: bytes) -> tuple[bool, str, str]:
         return True, sender, "allowed"
     if domain in ALLOWED_DOMAINS:
         return True, sender, "allowed"
+    if single_sender(raw_message) in shared_contacts():
+        return True, sender, "shared-contact"
     return False, sender, "from-domain-not-allowed"
 
 
@@ -130,11 +177,12 @@ def log_drop(sender: str, reason: str) -> None:
 def main() -> int:
     raw_message = sys.stdin.buffer.read()
     allowed, sender, reason = sender_allowed(raw_message)
-    if allowed and REQUIRE_ALIGNED_DKIM:
+    if allowed and (REQUIRE_ALIGNED_DKIM or reason == "shared-contact"):
         allowed, reason = dkim_authenticated(raw_message)
         if not allowed:
             allowed, reason = local_submission_authenticated(raw_message)
     if allowed:
+        learn_contacts(raw_message)
         mailbox.Maildir(str(MAILDIR), factory=None, create=True).add(raw_message)
     else:
         log_drop(sender, reason)
