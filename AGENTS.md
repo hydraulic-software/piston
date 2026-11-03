@@ -2,6 +2,9 @@
 
 Piston is the reusable employee automation project. Preserve account isolation
 and never embed credentials or employee-specific live state in this repository.
+Piston is reusable infrastructure: privileged shared setup must have one
+parameterized, rerunnable administrator entry point rather than manual per-host
+commands. Preserve existing authentication and fail safely on unmanaged state.
 Run `scripts/check.sh` before committing. Own Piston changes may be integrated
 on master, pushed and deployed with `scripts/update-local.sh --systemd`.
 

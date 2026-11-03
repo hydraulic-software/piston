@@ -135,7 +135,7 @@ class MailAuthenticationTest(unittest.TestCase):
             self.filter.local_submission_authenticated(message),
         )
 
-    def test_authenticated_introduction_is_exact_shared_and_nontransitive(self):
+    def test_authenticated_introduction_is_exact_shared_and_transitive(self):
         with tempfile.TemporaryDirectory() as directory:
             contacts = Path(directory) / "contacts"
             contacts.touch()
@@ -154,7 +154,7 @@ class MailAuthenticationTest(unittest.TestCase):
             external = self.message("hq.example; dkim=pass header.d=outside.example",
                                     "friend@outside.example").replace(b"To: bot@hq.example", b"To: third@new.example")
             self.filter.learn_contacts(external)
-            self.assertNotIn("third@new.example", self.filter.shared_contacts())
+            self.assertIn("third@new.example", self.filter.shared_contacts())
             # A second employee process loads the same provisioned file.
             other = load_filter()
             other.SHARED_CONTACTS = str(contacts)

@@ -6,6 +6,7 @@ REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
 echo "[1/5] Python syntax checks"
 python3 -m py_compile \
+  "$REPO_ROOT/scripts/setup-shared-mail.py" \
   "$REPO_ROOT/bin/piston-autonomy-scheduler" \
   "$REPO_ROOT/bin/piston-backfill-codex-summaries" \
   "$REPO_ROOT/bin/piston-mail-filter" \
