@@ -4,6 +4,7 @@ import os
 from pathlib import Path
 import pwd
 import unittest
+import tempfile
 
 
 FILTER_PATH = Path(__file__).parents[1] / "bin" / "piston-mail-filter"
@@ -133,6 +134,42 @@ class MailAuthenticationTest(unittest.TestCase):
             (False, "missing-local-postfix-uid"),
             self.filter.local_submission_authenticated(message),
         )
+
+    def test_authenticated_introduction_is_exact_shared_and_nontransitive(self):
+        with tempfile.TemporaryDirectory() as directory:
+            contacts = Path(directory) / "contacts"
+            contacts.touch()
+            self.filter.SHARED_CONTACTS = str(contacts)
+            self.filter.INTRODUCERS = {"mike@company.example"}
+            self.filter.ALLOWED_DOMAINS = {"company.example", "hq.example"}
+            raw = self.message("hq.example; dkim=pass header.d=company.example",
+                               "mike@company.example").replace(
+                b"To: bot@hq.example", b"To: Bot <bot@hq.example>, Person <friend@outside.example>\nCc: other@outside.example")
+            self.filter.learn_contacts(raw)
+            self.filter.learn_contacts(raw)
+            self.assertEqual({"friend@outside.example", "other@outside.example"}, self.filter.shared_contacts())
+            self.assertEqual(2, len(contacts.read_text().splitlines()))
+            self.assertTrue(self.filter.sender_allowed(self.message(from_address="friend@outside.example"))[0])
+            self.assertFalse(self.filter.sender_allowed(self.message(from_address="stranger@outside.example"))[0])
+            external = self.message("hq.example; dkim=pass header.d=outside.example",
+                                    "friend@outside.example").replace(b"To: bot@hq.example", b"To: third@new.example")
+            self.filter.learn_contacts(external)
+            self.assertNotIn("third@new.example", self.filter.shared_contacts())
+            # A second employee process loads the same provisioned file.
+            other = load_filter()
+            other.SHARED_CONTACTS = str(contacts)
+            self.assertEqual(self.filter.shared_contacts(), other.shared_contacts())
+
+    def test_spoofed_introducer_cannot_enroll_contacts(self):
+        with tempfile.TemporaryDirectory() as directory:
+            contacts = Path(directory) / "contacts"
+            contacts.touch()
+            self.filter.SHARED_CONTACTS = str(contacts)
+            self.filter.INTRODUCERS = {"mike@company.example"}
+            raw = self.message(from_address="mike@company.example", forged=True).replace(
+                b"To: bot@hq.example", b"To: attacker@outside.example")
+            self.filter.learn_contacts(raw)
+            self.assertEqual("", contacts.read_text())
 
 
 if __name__ == "__main__":
