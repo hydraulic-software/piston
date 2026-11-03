@@ -131,6 +131,10 @@ sudo python3 scripts/setup-shared-mail.py --user axiom --user daneel --introduce
 ```
 
 Use `--dry-run` first. `--state-dir` and `--group` parameterize shared storage.
+It requires `acl` (`setfacl`) and `util-linux` (`setpriv`). Postfix command
+delivery omits supplementary groups, so it grants named-user ACLs on the shared
+directory/file and checks read/write access with `--clear-groups` before editing
+each delivery configuration. A normal login/`sg` check is not sufficient.
 It refuses unmanaged forwarding rules or absent aligned-DKIM configuration,
 preserves existing auth variables, backs up the original `.forward`, and leaves
 contact contents intact on rerun. It does not update other accounts' Piston

@@ -9,7 +9,18 @@ from pathlib import Path
 import pwd
 import re
 import shlex
+import shutil
 import subprocess
+
+
+def grant_delivery_access(user, state_dir, contacts):
+    # Postfix local(8) command delivery does not enable supplementary groups.
+    # A normal login or sg test therefore cannot verify this access path.
+    subprocess.run(["setfacl", "-m", f"u:{user.pw_uid}:rx", str(state_dir)], check=True)
+    subprocess.run(["setfacl", "-m", f"u:{user.pw_uid}:rw", str(contacts)], check=True)
+    subprocess.run(["setpriv", f"--reuid={user.pw_uid}", f"--regid={user.pw_gid}", "--clear-groups",
+                    "--", "/usr/bin/python3", "-c",
+                    "import sys; f=open(sys.argv[1], 'r+'); f.close()", str(contacts)], check=True)
 
 
 def forward_content(text, contacts, introducers):
@@ -65,6 +76,9 @@ def main():
         return
     if os.geteuid() != 0:
         parser.error("run as root, or use --dry-run")
+    for command in ("setfacl", "setpriv"):
+        if shutil.which(command) is None:
+            parser.error(f"{command} required (install acl and util-linux before provisioning)")
     try:
         group = grp.getgrnam(args.group)
     except KeyError:
@@ -81,6 +95,9 @@ def main():
         os.close(fd)
     for user, forward, content in plans:
         subprocess.run(["usermod", "-aG", args.group, user.pw_name], check=True)
+        # Verify ACL/filesystem support and actual delivery identity before
+        # enabling a filter configuration that could otherwise bounce mail.
+        grant_delivery_access(user, args.state_dir, contacts)
         backup = forward.with_name(".forward.before-shared-contacts")
         if not backup.exists():
             fd = os.open(backup, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
