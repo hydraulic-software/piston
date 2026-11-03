@@ -50,7 +50,8 @@ def shared_contacts(additions: set[str] | None = None) -> set[str]:
 
 
 def learn_contacts(raw_message: bytes) -> None:
-    if single_sender(raw_message) not in INTRODUCERS:
+    sender = single_sender(raw_message)
+    if sender not in INTRODUCERS and sender not in shared_contacts():
         return
     # Enrollment is always authenticated, even if a deployment disables its
     # ordinary domain filter. Recipient headers alone never confer authority.

@@ -115,13 +115,28 @@ Start from [`config/environment.example`](config/environment.example). Important
   filters must use the same file. Reads/writes use advisory locking and updates
   are append-only/deduplicated; its parent must not be writable by outsiders.
 - `BOT_MAIL_INTRODUCERS`: comma-separated exact addresses allowed to introduce
-  external To/Cc recipients through authenticated mail. Learned contacts cannot
-  introduce others, never grant whole-domain access, and still require aligned
-  DKIM or the configured authenticated-local identity. This does not authorize
-  outbound customer contact. These settings must reach the delivery filter
+  external To/Cc recipients through authenticated mail. Learned contacts can
+  introduce further exact addresses in authenticated CC chains, never grant
+  whole-domain access, and still require aligned DKIM or the configured
+  authenticated-local identity. Outbound contact authority is the operator's
+  policy, not a consequence of an unauthenticated header. These settings must reach the delivery filter
   (for HQ, `.forward` environment), not merely the Codex service environment.
 
 Example shared-file provisioning by the administrator (replace employee names):
+
+Preferred rerunnable entry point, after participating accounts deploy this version:
+
+```sh
+sudo python3 scripts/setup-shared-mail.py --user axiom --user daneel --introducer mike@hydraulic.software
+```
+
+Use `--dry-run` first. `--state-dir` and `--group` parameterize shared storage.
+It refuses unmanaged forwarding rules or absent aligned-DKIM configuration,
+preserves existing auth variables, backs up the original `.forward`, and leaves
+contact contents intact on rerun. It does not update other accounts' Piston
+versions; deploy those first. This is separate from temporary DNS failure retry.
+
+Equivalent manual provisioning for unusual installations:
 
 ```sh
 groupadd --system piston-mail-contacts
