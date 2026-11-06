@@ -141,6 +141,30 @@ class RenderCodexMonitorTest(unittest.TestCase):
         self.assertEqual([current_user, current_output], lines)
         self.assertEqual(1, wakeup_index_offset)
 
+    def test_reasoning_summary_accepts_legacy_strings_and_typed_blocks(self):
+        summaries = [["first", "second"],
+                     [{"type": "summary_text", "text": "first"},
+                      {"type": "summary_text", "text": "second"}], "first\nsecond"]
+        for summary in summaries:
+            with self.subTest(summary=summary), tempfile.TemporaryDirectory() as directory:
+                path = Path(directory) / "rollout.jsonl"
+                records = [
+                    {"timestamp": "2026-07-15T22:01:00Z", "type": "event_msg",
+                     "payload": {"type": "user_message", "message": "Current turn"}},
+                    {"timestamp": "2026-07-15T22:01:10Z", "type": "response_item",
+                     "payload": {"type": "reasoning", "summary": summary}},
+                    {"timestamp": "2026-07-15T22:01:20Z", "type": "event_msg",
+                     "payload": {"type": "agent_message", "message": "Still rendering"}},
+                ]
+                path.write_text("\n".join(map(json.dumps, records)) + "\n")
+                thread = self.thread(path)
+                full = MODULE.parse_rollout(thread)
+                recent = MODULE.parse_rollout(
+                    thread, dt.datetime(2026, 7, 15, 22, 0, tzinfo=dt.timezone.utc))
+                self.assertEqual(full, recent)
+                self.assertEqual("first\nsecond", full[0]["entries"][0]["plain"])
+                self.assertEqual("Still rendering", full[0]["entries"][-1]["plain"])
+
     def test_unicode_separators_and_partial_records_do_not_break_rendering(self):
         user = {"timestamp": "2026-07-15T22:01:00Z", "type": "event_msg",
                 "payload": {"type": "user_message", "message": "Current turn"}}

@@ -566,7 +566,9 @@ def parse_rollout(thread: dict, since: dt.datetime | None = None) -> list[dict]:
                 current["end_ts"] = at.timestamp()
             if kind == "reasoning":
                 summary = payload.get("summary") or []
-                if summary:
+                summary_text = ("\n".join(content_text(item) for item in summary)
+                                if isinstance(summary, list) else content_text(summary))
+                if summary_text:
                     append_entry(
                         at,
                         {
@@ -574,8 +576,8 @@ def parse_rollout(thread: dict, since: dt.datetime | None = None) -> list[dict]:
                             "role": "reasoning",
                             "ts": at.timestamp(),
                             "when": when,
-                            "html": render_markdown("\n".join(summary)),
-                            "plain": "\n".join(summary),
+                            "html": render_markdown(summary_text),
+                            "plain": summary_text,
                         }
                     )
             elif kind in {"function_call", "custom_tool_call"}:
